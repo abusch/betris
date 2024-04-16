@@ -31,7 +31,7 @@ fn splash_setup(mut commands: Commands, assets: Res<AssetServer>) {
                     color: Color::WHITE,
                 },
             )
-            .with_alignment(TextAlignment::Center),
+            .with_justify(JustifyText::Center),
             ..default()
         })
         .insert(OnSplashScreen);

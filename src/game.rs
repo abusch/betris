@@ -13,7 +13,7 @@ pub struct GamePlugin;
 
 impl Plugin for GamePlugin {
     fn build(&self, app: &mut App) {
-        app.add_state::<Phase>()
+        app.init_state::<Phase>()
             .add_systems(OnEnter(AppState::InGame), game_setup)
             .add_systems(Update, ui_update.run_if(in_state(AppState::InGame)))
             .add_systems(
@@ -34,6 +34,7 @@ impl Plugin for GamePlugin {
 }
 
 // TODO Is this necessary? Should it be a bunch of serial systems?
+#[allow(unused)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Hash, States, strum::Display)]
 pub enum Phase {
     Generation,
@@ -252,7 +253,7 @@ fn spawn_piece<T: Component>(
 }
 
 fn handle_input(
-    key: Res<Input<KeyCode>>,
+    key: Res<ButtonInput<KeyCode>>,
     mut current_piece_query: Query<(&mut Piece, &mut Pos), With<CurrentPiece>>,
     time: Res<Time>,
     mut fall_timer: ResMut<FallTimer>,
@@ -260,9 +261,9 @@ fn handle_input(
 ) {
     let (mut current_piece, mut pos) = current_piece_query.single_mut();
 
-    if key.just_pressed(KeyCode::Down) {
+    if key.just_pressed(KeyCode::ArrowDown) {
         fall_timer.soft_drop();
-    } else if key.just_released(KeyCode::Down) {
+    } else if key.just_released(KeyCode::ArrowDown) {
         fall_timer.normal_drop();
     }
     for _ in 0..fall_timer.tick(time.delta()).times_finished_this_tick() {
@@ -274,16 +275,16 @@ fn handle_input(
         }
     }
 
-    if key.just_pressed(KeyCode::Z) {
+    if key.just_pressed(KeyCode::KeyZ) {
         current_piece.rotate_ccw();
-    } else if key.just_pressed(KeyCode::X) {
+    } else if key.just_pressed(KeyCode::KeyX) {
         current_piece.rotate_cw();
-    } else if key.just_pressed(KeyCode::Left) {
+    } else if key.just_pressed(KeyCode::ArrowLeft) {
         let left_pos = pos.left();
         if current_piece.min_x(left_pos) >= 0 {
             *pos = left_pos;
         }
-    } else if key.just_pressed(KeyCode::Right) {
+    } else if key.just_pressed(KeyCode::ArrowRight) {
         let right_pos = pos.right();
         if current_piece.max_x(right_pos) <= 9 {
             *pos = right_pos;
