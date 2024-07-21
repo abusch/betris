@@ -1,4 +1,4 @@
-use bevy::prelude::*;
+use bevy::{color::palettes, prelude::*};
 use num_enum::TryFromPrimitive;
 use rand::thread_rng;
 
@@ -83,13 +83,13 @@ const OFFSETS: [[[(isize, isize); 4]; 4]; 7] = [
         [(-1, -1), (-1, 0), (0, 0), (0, 1)],
     ],
 ];
-const YELLOW: Color = Color::YELLOW;
-const LIGHT_BLUE: Color = Color::BLUE;
-const PURPLE: Color = Color::PURPLE;
-const ORANGE: Color = Color::ORANGE;
-const DARK_BLUE: Color = Color::MIDNIGHT_BLUE;
-const GREEN: Color = Color::GREEN;
-const RED: Color = Color::RED;
+const YELLOW: Srgba = palettes::css::YELLOW;
+const LIGHT_BLUE: Srgba = palettes::css::BLUE;
+const PURPLE: Srgba = palettes::css::PURPLE;
+const ORANGE: Srgba = palettes::css::ORANGE;
+const DARK_BLUE: Srgba = palettes::css::MIDNIGHT_BLUE;
+const GREEN: Srgba = palettes::css::GREEN;
+const RED: Srgba = palettes::css::RED;
 
 #[derive(Component, Debug, Clone, Copy)]
 pub struct Piece {
@@ -124,13 +124,13 @@ impl Piece {
 
     pub fn color(&self) -> Color {
         match self.typ {
-            Tetrimino::O => YELLOW,
-            Tetrimino::I => LIGHT_BLUE,
-            Tetrimino::T => PURPLE,
-            Tetrimino::L => ORANGE,
-            Tetrimino::J => DARK_BLUE,
-            Tetrimino::S => GREEN,
-            Tetrimino::Z => RED,
+            Tetrimino::O => YELLOW.into(),
+            Tetrimino::I => LIGHT_BLUE.into(),
+            Tetrimino::T => PURPLE.into(),
+            Tetrimino::L => ORANGE.into(),
+            Tetrimino::J => DARK_BLUE.into(),
+            Tetrimino::S => GREEN.into(),
+            Tetrimino::Z => RED.into(),
         }
     }
 

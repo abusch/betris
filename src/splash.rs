@@ -7,16 +7,12 @@ pub struct SplashPlugin;
 impl Plugin for SplashPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(OnEnter(AppState::Splash), splash_setup)
-            .add_systems(Update, countdown.run_if(in_state(AppState::Splash)))
-            .add_systems(OnExit(AppState::Splash), splash_cleanup);
+            .add_systems(Update, countdown.run_if(in_state(AppState::Splash)));
     }
 }
 
 #[derive(Resource, Deref, DerefMut)]
 struct SplashTime(Timer);
-
-#[derive(Component)]
-struct OnSplashScreen;
 
 fn splash_setup(mut commands: Commands, assets: Res<AssetServer>) {
     let font_handle: Handle<Font> = assets.load("fonts/BungeeSpice-Regular.ttf");
@@ -34,15 +30,9 @@ fn splash_setup(mut commands: Commands, assets: Res<AssetServer>) {
             .with_justify(JustifyText::Center),
             ..default()
         })
-        .insert(OnSplashScreen);
+        .insert(StateScoped(AppState::Splash));
 
     commands.insert_resource(SplashTime(Timer::from_seconds(2.0, TimerMode::Once)));
-}
-
-fn splash_cleanup(mut commands: Commands, query: Query<Entity, With<OnSplashScreen>>) {
-    for entity in query.iter() {
-        commands.entity(entity).despawn_recursive()
-    }
 }
 
 fn countdown(

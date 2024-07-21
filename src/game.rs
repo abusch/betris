@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use bevy::{prelude::*, sprite::Anchor};
+use bevy::{color::palettes, prelude::*, sprite::Anchor};
 
 use crate::{
     pieces::{Bag, Piece},
@@ -143,7 +143,7 @@ fn game_setup(
             });
         })
         .with_children(|parent| {
-            parent.spawn(MinoBundle::new(Pos::new(5, 5), Color::PINK));
+            parent.spawn(MinoBundle::new(Pos::new(5, 5), palettes::css::PINK.into()));
         });
 
     // Next-piece display zone
@@ -163,7 +163,7 @@ fn game_setup(
     let style = TextStyle {
         font: font_handle,
         font_size: 18.0,
-        color: Color::RED,
+        color: palettes::css::RED.into(),
     };
     commands.spawn((
         TextBundle::from_sections([
