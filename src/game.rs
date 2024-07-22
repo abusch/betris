@@ -1,11 +1,12 @@
 use std::time::Duration;
 
 use bevy::{color::palettes, prelude::*, sprite::Anchor};
+use leafwing_input_manager::action_state::ActionState;
 
 use crate::{
     pieces::{Bag, Piece},
     pos::Pos,
-    AppState,
+    Action, AppState,
 };
 
 pub const SCALE: f32 = 20.0;
@@ -254,17 +255,17 @@ fn spawn_piece<T: Component>(
 }
 
 fn handle_input(
-    key: Res<ButtonInput<KeyCode>>,
     mut current_piece_query: Query<(&mut Piece, &mut Pos), With<CurrentPiece>>,
+    action_state: Res<ActionState<Action>>,
     time: Res<Time>,
     mut fall_timer: ResMut<FallTimer>,
     mut next_phase: ResMut<NextState<Phase>>,
 ) {
     let (mut current_piece, mut pos) = current_piece_query.single_mut();
 
-    if key.just_pressed(KeyCode::ArrowDown) {
+    if action_state.just_pressed(&Action::Down) {
         fall_timer.soft_drop();
-    } else if key.just_released(KeyCode::ArrowDown) {
+    } else if action_state.just_released(&Action::Down) {
         fall_timer.normal_drop();
     }
     for _ in 0..fall_timer.tick(time.delta()).times_finished_this_tick() {
@@ -276,21 +277,21 @@ fn handle_input(
         }
     }
 
-    if key.just_pressed(KeyCode::KeyZ) {
+    if action_state.just_pressed(&Action::RotateLeft) {
         current_piece.rotate_ccw();
-    } else if key.just_pressed(KeyCode::KeyX) {
+    } else if action_state.just_pressed(&Action::RotateRight) {
         current_piece.rotate_cw();
-    } else if key.just_pressed(KeyCode::ArrowLeft) {
+    } else if action_state.just_pressed(&Action::Left) {
         let left_pos = pos.left();
         if current_piece.min_x(left_pos) >= 0 {
             *pos = left_pos;
         }
-    } else if key.just_pressed(KeyCode::ArrowRight) {
+    } else if action_state.just_pressed(&Action::Right) {
         let right_pos = pos.right();
         if current_piece.max_x(right_pos) <= 9 {
             *pos = right_pos;
         }
-    } else if key.just_pressed(KeyCode::Space) {
+    } else if action_state.just_pressed(&Action::Drop) {
         next_phase.set(Phase::Generation);
     }
 }

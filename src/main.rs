@@ -1,5 +1,8 @@
 use bevy::prelude::*;
 use game::GamePlugin;
+use leafwing_input_manager::{
+    action_state::ActionState, input_map::InputMap, plugin::InputManagerPlugin, Actionlike,
+};
 use splash::SplashPlugin;
 
 mod game;
@@ -10,6 +13,9 @@ mod splash;
 fn main() {
     App::new()
         .add_plugins(DefaultPlugins)
+        .add_plugins(InputManagerPlugin::<Action>::default())
+        .init_resource::<ActionState<Action>>()
+        .insert_resource(Action::make_input_map())
         .init_state::<AppState>()
         .enable_state_scoped_entities::<AppState>()
         .insert_resource(ClearColor(Color::BLACK))
@@ -37,6 +43,29 @@ pub enum AppState {
     Splash,
     MainMenu,
     InGame,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Actionlike, Reflect)]
+pub enum Action {
+    Left,
+    Right,
+    RotateLeft,
+    RotateRight,
+    Down,
+    Drop,
+}
+
+impl Action {
+    pub fn make_input_map() -> InputMap<Self> {
+        InputMap::new([
+            (Action::Left, KeyCode::ArrowLeft),
+            (Action::Right, KeyCode::ArrowRight),
+            (Action::RotateLeft, KeyCode::KeyZ),
+            (Action::RotateRight, KeyCode::KeyX),
+            (Action::Down, KeyCode::ArrowDown),
+            (Action::Drop, KeyCode::Space),
+        ])
+    }
 }
 
 fn setup(mut commands: Commands) {
