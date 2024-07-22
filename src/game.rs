@@ -4,7 +4,8 @@ use bevy::{color::palettes, prelude::*, sprite::Anchor};
 
 use crate::{
     pieces::{Bag, Piece},
-    AppState, Pos,
+    pos::Pos,
+    AppState,
 };
 
 pub const SCALE: f32 = 20.0;

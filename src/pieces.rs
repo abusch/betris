@@ -2,7 +2,7 @@ use bevy::{color::palettes, prelude::*};
 use num_enum::TryFromPrimitive;
 use rand::thread_rng;
 
-use crate::Pos;
+use crate::pos::Pos;
 
 const OFFSETS: [[[(isize, isize); 4]; 4]; 7] = [
     // O-Tetrimino
