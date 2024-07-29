@@ -218,7 +218,6 @@ impl Facing {
     }
 }
 
-#[derive(Resource)]
 pub struct Bag(Vec<Tetrimino>);
 
 impl Bag {

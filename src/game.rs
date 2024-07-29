@@ -16,6 +16,7 @@ pub struct GamePlugin;
 impl Plugin for GamePlugin {
     fn build(&self, app: &mut App) {
         app.init_state::<Phase>()
+            .init_resource::<GameState>()
             .add_systems(OnEnter(AppState::InGame), game_setup)
             .add_systems(Update, ui_update.run_if(in_state(AppState::InGame)))
             .add_systems(
@@ -49,9 +50,49 @@ pub enum Phase {
     Noop,
 }
 
-/// Parent component of the Matrix i.e the main grid where the game happens
-#[derive(Component)]
-pub struct Matrix;
+#[derive(Default, Resource)]
+pub struct GameState {
+    pub matrix: Matrix,
+    pub bag: Bag,
+}
+
+#[derive(Debug, Clone)]
+pub struct Matrix {
+    pub root_entity: Entity,
+    pub board: [Entity; 10 * 22],
+}
+
+impl Default for Matrix {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl Matrix {
+    pub fn new() -> Self {
+        Self {
+            root_entity: Entity::PLACEHOLDER,
+            board: [Entity::PLACEHOLDER; 10 * 22],
+        }
+    }
+
+    pub fn is_pos_valid(&self, piece: &Piece, pos: Pos) -> bool {
+        for p in piece.block_positions(pos) {
+            if self.at(p) != Entity::PLACEHOLDER {
+                return false;
+            }
+        }
+        true
+    }
+
+    pub fn at(&self, pos: Pos) -> Entity {
+        if pos.x < 0 || pos.y < 0 {
+            return Entity::PLACEHOLDER;
+        }
+
+        self.board[(pos.y * 10 + pos.x) as usize]
+    }
+}
 
 /// The parent component of where the next piece is displayed
 #[derive(Component)]
@@ -114,23 +155,20 @@ pub struct PhaseDebug;
 
 fn game_setup(
     mut commands: Commands,
+    mut state: ResMut<GameState>,
     mut next_phase: ResMut<NextState<Phase>>,
     asset_server: Res<AssetServer>,
 ) {
     let font_handle = asset_server.load("fonts/JetBrainsMonoNLNerdFont-Regular.ttf");
-    commands.init_resource::<Bag>();
     commands.insert_resource(FallTimer(Timer::from_seconds(1.0, TimerMode::Repeating)));
 
     // Matrix i.e main game area
-    commands
-        .spawn((
-            SpatialBundle {
-                transform: Transform::from_xyz(-200.0, -200.0, 1.0)
-                    .with_scale(Vec3::new(SCALE, SCALE, 1.0)),
-                ..default()
-            },
-            Matrix,
-        ))
+    state.matrix.root_entity = commands
+        .spawn((SpatialBundle {
+            transform: Transform::from_xyz(-200.0, -200.0, 1.0)
+                .with_scale(Vec3::new(SCALE, SCALE, 1.0)),
+            ..default()
+        },))
         .with_children(|children| {
             // "floor"
             children.spawn(SpriteBundle {
@@ -146,7 +184,8 @@ fn game_setup(
         })
         .with_children(|parent| {
             parent.spawn(MinoBundle::new(Pos::new(5, 5), palettes::css::PINK.into()));
-        });
+        })
+        .id();
 
     // Next-piece display zone
     commands.spawn((
@@ -200,15 +239,13 @@ fn clean_up_pieces(
 
 fn generate_piece(
     mut commands: Commands,
-    mut bag: ResMut<Bag>,
+    mut state: ResMut<GameState>,
     mut next_phase: ResMut<NextState<Phase>>,
-    matrix: Query<Entity, With<Matrix>>,
     next_piece_zone: Query<Entity, With<NextPieceDisplay>>,
 ) {
-    let matrix_entity = matrix.single();
     let next_piece_zone_entity = next_piece_zone.single();
-    let piece: Piece = bag.pop_next().into();
-    let next_piece: Piece = bag.peek_next().into();
+    let piece: Piece = state.bag.pop_next().into();
+    let next_piece: Piece = state.bag.peek_next().into();
     let initial_pos = Pos::new(2, 10);
 
     info!("Generating new piece {:?}", piece.typ);
@@ -219,7 +256,7 @@ fn generate_piece(
 
     spawn_piece(
         &mut commands,
-        matrix_entity,
+        state.matrix.root_entity,
         piece,
         initial_pos,
         CurrentPiece,
@@ -243,8 +280,8 @@ fn spawn_piece<T: Component>(
     initial_pos: Pos,
     component: T,
 ) {
-    commands.entity(parent).with_children(|matrix_children| {
-        matrix_children
+    commands.entity(parent).with_children(|children| {
+        children
             .spawn((SpatialBundle::default(), initial_pos, piece, component))
             .with_children(|children| {
                 for pos in piece.block_positions(initial_pos) {
@@ -256,6 +293,7 @@ fn spawn_piece<T: Component>(
 
 fn handle_input(
     mut current_piece_query: Query<(&mut Piece, &mut Pos), With<CurrentPiece>>,
+    state: Res<GameState>,
     action_state: Res<ActionState<Action>>,
     time: Res<Time>,
     mut fall_timer: ResMut<FallTimer>,
@@ -270,7 +308,8 @@ fn handle_input(
     }
     for _ in 0..fall_timer.tick(time.delta()).times_finished_this_tick() {
         let down_pos = pos.down();
-        if current_piece.min_y(down_pos) >= 0 {
+        if current_piece.min_y(down_pos) >= 0 && state.matrix.is_pos_valid(&current_piece, down_pos)
+        {
             *pos = down_pos;
         } else {
             next_phase.set(Phase::Lock);
@@ -283,12 +322,15 @@ fn handle_input(
         current_piece.rotate_cw();
     } else if action_state.just_pressed(&Action::Left) {
         let left_pos = pos.left();
-        if current_piece.min_x(left_pos) >= 0 {
+        if current_piece.min_x(left_pos) >= 0 && state.matrix.is_pos_valid(&current_piece, left_pos)
+        {
             *pos = left_pos;
         }
     } else if action_state.just_pressed(&Action::Right) {
         let right_pos = pos.right();
-        if current_piece.max_x(right_pos) <= 9 {
+        if current_piece.max_x(right_pos) <= 9
+            && state.matrix.is_pos_valid(&current_piece, right_pos)
+        {
             *pos = right_pos;
         }
     } else if action_state.just_pressed(&Action::Drop) {
@@ -335,13 +377,12 @@ fn update_blocks_transforms(
 }
 
 fn handle_lock(
-    mut commands: Commands,
+    mut _commands: Commands,
+    mut _state: ResMut<GameState>,
     mut current_piece: Query<(&Pos, &Piece), With<CurrentPiece>>,
-    board: Query<Entity, With<Matrix>>,
     mut next_phase: ResMut<NextState<Phase>>,
 ) {
-    let matrix = board.single();
-    if let Ok((piece_pos, piece)) = current_piece.get_single_mut() {
+    if let Ok((_piece_pos, _piece)) = current_piece.get_single_mut() {
         // info!("Locking piece! Piece pos={piece_pos:?}");
         // commands.entity(matrix).with_children(|parent| {
         //     for block_pos in piece.block_positions(*piece_pos) {
