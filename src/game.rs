@@ -26,6 +26,7 @@ impl Plugin for GamePlugin {
             .add_systems(
                 Update,
                 (
+                    debug_stuff,
                     handle_input,
                     update_piece_transform,
                     update_blocks_transforms,
@@ -401,4 +402,16 @@ fn handle_lock(
     }
 
     next_phase.set(Phase::Generation);
+}
+
+fn debug_stuff(mut gizmos: Gizmos) {
+    gizmos
+        .grid_2d(
+            Vec2::new(-5.0 * SCALE, 0.0),
+            0.0,
+            UVec2::new(10, 22),
+            Vec2::new(SCALE, SCALE),
+            palettes::css::HOT_PINK,
+        )
+        .outer_edges();
 }
