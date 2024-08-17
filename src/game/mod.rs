@@ -1,40 +1,40 @@
 use std::time::Duration;
 
 use bevy::{color::palettes, prelude::*, sprite::Anchor};
+use input::Action;
 use leafwing_input_manager::action_state::ActionState;
 
 use crate::{
     pieces::{Bag, Piece},
     pos::Pos,
-    Action, AppState,
+    screen::Screen,
 };
+
+mod input;
 
 pub const SCALE: f32 = 20.0;
 
-pub struct GamePlugin;
-
-impl Plugin for GamePlugin {
-    fn build(&self, app: &mut App) {
-        app.init_state::<Phase>()
-            .init_resource::<GameState>()
-            .add_systems(OnEnter(AppState::InGame), game_setup)
-            .add_systems(Update, ui_update.run_if(in_state(AppState::InGame)))
-            .add_systems(
-                OnEnter(Phase::Generation),
-                (clean_up_pieces, generate_piece).chain(),
+pub fn plugin(app: &mut App) {
+    app.init_state::<Phase>()
+        .init_resource::<GameState>()
+        .add_plugins(input::plugin)
+        .add_systems(OnEnter(Screen::Playing), game_setup)
+        .add_systems(Update, ui_update.run_if(in_state(Screen::Playing)))
+        .add_systems(
+            OnEnter(Phase::Generation),
+            (clean_up_pieces, generate_piece).chain(),
+        )
+        .add_systems(
+            Update,
+            (
+                debug_stuff,
+                handle_input,
+                update_piece_transform,
+                update_blocks_transforms,
             )
-            .add_systems(
-                Update,
-                (
-                    debug_stuff,
-                    handle_input,
-                    update_piece_transform,
-                    update_blocks_transforms,
-                )
-                    .run_if(in_state(Phase::Falling)),
-            )
-            .add_systems(OnEnter(Phase::Lock), handle_lock);
-    }
+                .run_if(in_state(Phase::Falling)),
+        )
+        .add_systems(OnEnter(Phase::Lock), handle_lock);
 }
 
 // TODO Is this necessary? Should it be a bunch of serial systems?
