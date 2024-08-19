@@ -1,3 +1,5 @@
+use std::f32::consts::PI;
+
 use bevy::{color::palettes, prelude::*};
 use num_enum::TryFromPrimitive;
 use rand::thread_rng;
@@ -94,7 +96,7 @@ const RED: Srgba = palettes::css::RED;
 #[derive(Component, Debug, Clone, Copy)]
 pub struct Piece {
     pub typ: Tetrimino,
-    orientation: Facing,
+    pub orientation: Facing,
 }
 
 impl Piece {
@@ -214,6 +216,15 @@ impl Facing {
             Facing::East => Facing::North,
             Facing::South => Facing::East,
             Facing::West => Facing::South,
+        }
+    }
+
+    pub fn angle(&self) -> f32 {
+        match self {
+            Facing::North => 0.0,
+            Facing::East => -PI / 2.0,
+            Facing::South => PI,
+            Facing::West => PI / 2.0,
         }
     }
 }

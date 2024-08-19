@@ -1,9 +1,16 @@
-use bevy::prelude::*;
+use bevy::{dev_tools::states::log_transitions, prelude::*};
 
-use crate::AppSet;
+use crate::{game::Phase, screen::Screen, AppSet};
 
 pub fn plugin(app: &mut App) {
-    app.add_systems(Update, close_on_esc.in_set(AppSet::RecordInput));
+    app.add_systems(
+        Update,
+        (
+            close_on_esc.in_set(AppSet::RecordInput),
+            log_transitions::<Screen>,
+            log_transitions::<Phase>,
+        ),
+    );
 }
 
 fn close_on_esc(

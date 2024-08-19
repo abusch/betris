@@ -1,5 +1,6 @@
 use bevy::prelude::*;
 
+#[cfg(feature = "dev")]
 mod dev_tools;
 mod game;
 mod pieces;
@@ -22,6 +23,7 @@ impl Plugin for AppPlugin {
             .add_plugins((game::plugin, screen::plugin));
 
         // TODO: disable in release mode
+        #[cfg(feature = "dev")]
         app.add_plugins(dev_tools::plugin);
     }
 }

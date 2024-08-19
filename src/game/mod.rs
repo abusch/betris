@@ -1,9 +1,19 @@
 use std::time::Duration;
 
-use bevy::{color::palettes, prelude::*, sprite::Anchor};
+use bevy::{
+    color::palettes::{self},
+    ecs::component::StorageType,
+    prelude::*,
+    sprite::Anchor,
+};
 use input::Action;
 use leafwing_input_manager::action_state::ActionState;
+use spawners::{
+    next_piece_zone::NextPieceDisplay, piece::CurrentPiece, SpawnMatrix, SpawnNextPieceZone,
+    SpawnPiece,
+};
 
+use self::matrix::Matrix;
 use crate::{
     pieces::{Bag, Piece},
     pos::Pos,
@@ -11,30 +21,34 @@ use crate::{
 };
 
 mod input;
+mod matrix;
+pub mod spawners;
 
+pub const MATRIX_WIDTH: usize = 10;
+pub const MATRIX_HEIGHT: usize = 40;
 pub const SCALE: f32 = 20.0;
 
 pub fn plugin(app: &mut App) {
     app.init_state::<Phase>()
         .init_resource::<GameState>()
-        .add_plugins(input::plugin)
+        .insert_resource(ClearColor(palettes::css::LIGHT_GRAY.into()))
+        .add_plugins((input::plugin, spawners::plugin))
         .add_systems(OnEnter(Screen::Playing), game_setup)
-        .add_systems(Update, ui_update.run_if(in_state(Screen::Playing)))
+        .add_systems(
+            Update,
+            (ui_update, debug_stuff).run_if(in_state(Screen::Playing)),
+        )
         .add_systems(
             OnEnter(Phase::Generation),
             (clean_up_pieces, generate_piece).chain(),
         )
         .add_systems(
             Update,
-            (
-                debug_stuff,
-                handle_input,
-                update_piece_transform,
-                update_blocks_transforms,
-            )
-                .run_if(in_state(Phase::Falling)),
+            (debug_stuff, handle_input, update_piece_transform).run_if(in_state(Phase::Falling)),
         )
-        .add_systems(OnEnter(Phase::Lock), handle_lock);
+        .add_systems(OnEnter(Phase::Lock), handle_lock)
+        .add_systems(OnEnter(Phase::Pattern), detect_patterns)
+        .add_systems(OnEnter(Phase::Eliminate), eliminate);
 }
 
 // TODO Is this necessary? Should it be a bunch of serial systems?
@@ -57,63 +71,34 @@ pub struct GameState {
     pub bag: Bag,
 }
 
-#[derive(Debug, Clone)]
-pub struct Matrix {
-    pub root_entity: Entity,
-    pub board: [Entity; 10 * 22],
-}
-
-impl Default for Matrix {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl Matrix {
-    pub fn new() -> Self {
-        Self {
-            root_entity: Entity::PLACEHOLDER,
-            board: [Entity::PLACEHOLDER; 10 * 22],
-        }
-    }
-
-    pub fn is_pos_valid(&self, piece: &Piece, pos: Pos) -> bool {
-        for p in piece.block_positions(pos) {
-            if self.at(p) != Entity::PLACEHOLDER {
-                return false;
-            }
-        }
-        true
-    }
-
-    pub fn at(&self, pos: Pos) -> Entity {
-        if pos.x < 0 || pos.y < 0 {
-            return Entity::PLACEHOLDER;
-        }
-
-        self.board[(pos.y * 10 + pos.x) as usize]
-    }
-}
-
-/// The parent component of where the next piece is displayed
+/// A mino (i.e block) which is part of a piece
 #[derive(Component)]
-pub struct NextPieceDisplay;
+pub struct Mino;
 
-/// Marker component for the current piece (i.e. the piece controlled by the player)
-#[derive(Component)]
-pub struct CurrentPiece;
-
-/// Marker component for the next piece (i.e. the piece displayed in the "next piece" zone)
-#[derive(Component)]
-pub struct NextPiece;
-
-#[derive(Component)]
+/// A static block that has been committed to the matrix.
 pub struct Block;
+
+impl Component for Block {
+    fn register_component_hooks(hooks: &mut bevy::ecs::component::ComponentHooks) {
+        hooks.on_add(|mut world, entity, _component_id| {
+            let pos = world
+                .entity(entity)
+                .get::<Pos>()
+                .copied()
+                .expect("Block component without Pos!");
+            info!("Block was added at {pos}");
+            let mut state = world.resource_mut::<GameState>();
+            state.matrix.insert(pos, entity);
+        });
+    }
+
+    const STORAGE_TYPE: StorageType = StorageType::Table;
+}
 
 #[derive(Bundle)]
 pub struct MinoBundle {
     sprite: SpriteBundle,
-    block: Block,
+    mino: Mino,
 }
 
 impl MinoBundle {
@@ -122,13 +107,39 @@ impl MinoBundle {
             sprite: SpriteBundle {
                 sprite: Sprite {
                     custom_size: Some(Vec2::splat(1.0)),
-                    anchor: Anchor::TopLeft,
+                    anchor: Anchor::Center,
                     color,
                     ..default()
                 },
                 transform: Transform::from_xyz(pos.x as f32, pos.y as f32, 1.0),
                 ..default()
             },
+            mino: Mino,
+        }
+    }
+}
+
+#[derive(Bundle)]
+pub struct BlockBundle {
+    sprite: SpriteBundle,
+    block: Block,
+    pos: Pos,
+}
+
+impl BlockBundle {
+    pub fn new(pos: Pos) -> Self {
+        Self {
+            sprite: SpriteBundle {
+                sprite: Sprite {
+                    custom_size: Some(Vec2::splat(1.0)),
+                    anchor: Anchor::Center,
+                    color: palettes::css::GRAY.into(),
+                    ..default()
+                },
+                transform: Transform::from_xyz(pos.x as f32, pos.y as f32, 1.0),
+                ..default()
+            },
+            pos,
             block: Block,
         }
     }
@@ -156,50 +167,14 @@ pub struct PhaseDebug;
 
 fn game_setup(
     mut commands: Commands,
-    mut state: ResMut<GameState>,
     mut next_phase: ResMut<NextState<Phase>>,
     asset_server: Res<AssetServer>,
 ) {
     let font_handle = asset_server.load("fonts/JetBrainsMonoNLNerdFont-Regular.ttf");
     commands.insert_resource(FallTimer(Timer::from_seconds(1.0, TimerMode::Repeating)));
 
-    // Matrix i.e main game area
-    state.matrix.root_entity = commands
-        .spawn((SpatialBundle {
-            transform: Transform::from_xyz(-200.0, -200.0, 1.0)
-                .with_scale(Vec3::new(SCALE, SCALE, 1.0)),
-            ..default()
-        },))
-        .with_children(|children| {
-            // "floor"
-            children.spawn(SpriteBundle {
-                sprite: Sprite {
-                    custom_size: Some(Vec2::new(10.0, 1.0)),
-                    anchor: Anchor::TopLeft,
-                    ..default()
-                },
-                // Floor is unit below "zero"
-                transform: Transform::from_xyz(0.0, -1.0, 1.0),
-                ..default()
-            });
-        })
-        .with_children(|parent| {
-            parent.spawn(MinoBundle::new(Pos::new(5, 5), palettes::css::PINK.into()));
-        })
-        .id();
-
-    // Next-piece display zone
-    commands.spawn((
-        SpatialBundle {
-            transform: Transform::from_xyz(100.0, 100.0, 1.0).with_scale(Vec3::new(
-                SCALE / 2.0,
-                SCALE / 2.0,
-                1.0,
-            )),
-            ..default()
-        },
-        NextPieceDisplay,
-    ));
+    commands.trigger(SpawnMatrix);
+    commands.trigger(SpawnNextPieceZone);
 
     // Debug display
     let style = TextStyle {
@@ -223,18 +198,10 @@ fn ui_update(phase: Res<State<Phase>>, mut text: Query<&mut Text, With<PhaseDebu
     }
 }
 
-fn clean_up_pieces(
-    mut commands: Commands,
-    current_piece: Query<Entity, With<CurrentPiece>>,
-    next_piece: Query<Entity, With<NextPiece>>,
-) {
-    if let Ok(current_piece) = current_piece.get_single() {
-        info!("Cleaning up current piece");
-        commands.entity(current_piece).despawn_recursive();
-    }
-    if let Ok(next_piece) = next_piece.get_single() {
-        info!("Cleaning up next piece");
-        commands.entity(next_piece).despawn_recursive();
+fn clean_up_pieces(mut commands: Commands, pieces: Query<Entity, With<Piece>>) {
+    for piece in pieces.into_iter() {
+        info!("Despawning piece");
+        commands.entity(piece).despawn_recursive();
     }
 }
 
@@ -247,49 +214,14 @@ fn generate_piece(
     let next_piece_zone_entity = next_piece_zone.single();
     let piece: Piece = state.bag.pop_next().into();
     let next_piece: Piece = state.bag.peek_next().into();
-    let initial_pos = Pos::new(2, 10);
 
     info!("Generating new piece {:?}", piece.typ);
 
-    commands
-        .entity(next_piece_zone_entity)
-        .despawn_descendants();
+    commands.trigger_targets(SpawnPiece::current(piece), state.matrix.root_entity);
+    commands.trigger_targets(SpawnPiece::next(next_piece), next_piece_zone_entity);
 
-    spawn_piece(
-        &mut commands,
-        state.matrix.root_entity,
-        piece,
-        initial_pos,
-        CurrentPiece,
-    );
-    spawn_piece(
-        &mut commands,
-        next_piece_zone_entity,
-        next_piece,
-        Pos::new(0, 0),
-        NextPiece,
-    );
-
-    // TODO setup next piece + ghose piece
+    // TODO ghost piece
     next_phase.set(Phase::Falling);
-}
-
-fn spawn_piece<T: Component>(
-    commands: &mut Commands,
-    parent: Entity,
-    piece: Piece,
-    initial_pos: Pos,
-    component: T,
-) {
-    commands.entity(parent).with_children(|children| {
-        children
-            .spawn((SpatialBundle::default(), initial_pos, piece, component))
-            .with_children(|children| {
-                for pos in piece.block_positions(initial_pos) {
-                    children.spawn(MinoBundle::new(pos, piece.color()));
-                }
-            });
-    });
 }
 
 fn handle_input(
@@ -314,6 +246,8 @@ fn handle_input(
             *pos = down_pos;
         } else {
             next_phase.set(Phase::Lock);
+            fall_timer.normal_drop();
+            return;
         }
     }
 
@@ -343,71 +277,65 @@ fn handle_input(
 ///
 /// The piece's position (as tracked by `Pos`) is the position (in grid coordinates) of the "visual
 /// center" of the piece. The blocks that make up the piece will be positioned relative to that.
-fn update_piece_transform(mut piece: Query<(&mut Transform, Ref<Pos>), With<CurrentPiece>>) {
-    if let Ok((mut transform, pos)) = piece.get_single_mut() {
+fn update_piece_transform(
+    mut piece: Query<(&mut Transform, Ref<Pos>, Ref<Piece>), With<CurrentPiece>>,
+) {
+    if let Ok((mut transform, pos, piece)) = piece.get_single_mut() {
         // If the position of the piece has changed, update its transform
         if pos.is_changed() {
-            info!("Updating transform for piece");
             transform.translation.x = pos.x as f32;
             transform.translation.y = pos.y as f32;
         }
-    }
-}
-
-/// Update the current piece's blocks Transforms based on the current facing.
-///
-/// A block's transform is relative to the piece itself, with the "visual rotation center" having
-/// coordinates (0, 0). So a block with position (1, 0) will be to the right of the visual center.
-fn update_blocks_transforms(
-    mut piece: Query<(Ref<Piece>, &Children), With<CurrentPiece>>,
-    mut blocks: Query<&mut Transform, With<Block>>,
-) {
-    if let Ok((piece, children)) = piece.get_single_mut() {
-        // If the piece itself has changed (i.e. its orientation), reset the local transform of
-        // its blocks
         if piece.is_changed() {
-            info!("Updating blocks for piece = {:?}", piece.typ);
-            for (child, block_pos) in children.iter().zip(piece.block_offsets().iter()) {
-                if let Ok(mut transform) = blocks.get_mut(*child) {
-                    transform.translation.x = block_pos.0 as f32;
-                    transform.translation.y = block_pos.1 as f32;
-                }
-            }
+            transform.rotation = Quat::from_rotation_z(piece.orientation.angle());
         }
     }
 }
 
 fn handle_lock(
-    mut _commands: Commands,
-    mut _state: ResMut<GameState>,
-    mut current_piece: Query<(&Pos, &Piece), With<CurrentPiece>>,
+    mut commands: Commands,
+    state: Res<GameState>,
+    current_piece: Query<(&Pos, &Piece), With<CurrentPiece>>,
     mut next_phase: ResMut<NextState<Phase>>,
 ) {
-    if let Ok((_piece_pos, _piece)) = current_piece.get_single_mut() {
-        // info!("Locking piece! Piece pos={piece_pos:?}");
-        // commands.entity(matrix).with_children(|parent| {
-        //     for block_pos in piece.block_positions(*piece_pos) {
-        //         parent.spawn(bundle)
-        //     }
-        // });
-        // if let Ok((mut transform, mut block_pos)) = blocks.get_mut(*child) {
-        //     block_pos.x += piece_pos.x;
-        //     block_pos.y += piece_pos.y;
-        //     info!("Block pos = {block_pos:?}");
-        //     commands.entity(*child).remove_parent_in_place();
-        //     commands.entity(matrix).add_child(*child);
-        //     transform.translation.x = block_pos.x as f32;
-        //     transform.translation.y = block_pos.y as f32;
-        // }
+    if let Ok((piece_pos, piece)) = current_piece.get_single() {
+        info!("Locking piece");
+        commands
+            .entity(state.matrix.root_entity)
+            .with_children(|children| {
+                for block_pos in piece.block_positions(*piece_pos) {
+                    children.spawn(BlockBundle::new(block_pos));
+                }
+            });
     }
 
+    next_phase.set(Phase::Pattern);
+}
+
+fn detect_patterns(
+    mut commands: Commands,
+    state: ResMut<GameState>,
+    mut next_phase: ResMut<NextState<Phase>>,
+) {
+    let lines = state.matrix.full_lines();
+    if !lines.is_empty() {
+        info!("Lines completed! {lines:?}");
+    }
+    next_phase.set(Phase::Eliminate);
+}
+
+fn eliminate(
+    mut commands: Commands,
+    state: Res<GameState>,
+    mut next_phase: ResMut<NextState<Phase>>,
+) {
     next_phase.set(Phase::Generation);
 }
 
 fn debug_stuff(mut gizmos: Gizmos) {
     gizmos
         .grid_2d(
-            Vec2::new(-5.0 * SCALE, 0.0),
+            Vec2::new(-5.5 * SCALE, 0.5 * SCALE),
             0.0,
             UVec2::new(10, 22),
             Vec2::new(SCALE, SCALE),
