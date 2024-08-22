@@ -1,5 +1,3 @@
-use std::time::Duration;
-
 use bevy::{
     color::palettes::{self},
     ecs::component::StorageType,
@@ -12,6 +10,7 @@ use spawners::{
     next_piece_zone::NextPieceDisplay, piece::CurrentPiece, SpawnMatrix, SpawnNextPieceZone,
     SpawnPiece,
 };
+use timers::{FallTimer, LockTimer};
 
 use self::matrix::Matrix;
 use crate::{
@@ -23,6 +22,7 @@ use crate::{
 mod input;
 mod matrix;
 pub mod spawners;
+mod timers;
 
 pub const MATRIX_WIDTH: usize = 10;
 pub const MATRIX_HEIGHT: usize = 40;
@@ -42,13 +42,16 @@ pub fn plugin(app: &mut App) {
             OnEnter(Phase::Generation),
             (clean_up_pieces, generate_piece).chain(),
         )
+        .add_systems(OnExit(Phase::Generation), first_drop)
+        .add_systems(OnEnter(Phase::Falling), start_fall_timer)
         .add_systems(
             Update,
-            (debug_stuff, handle_input, update_piece_transform).run_if(in_state(Phase::Falling)),
+            (tick_timers, handle_input, update_piece_transform).run_if(in_state(Phase::Falling)),
         )
         .add_systems(OnEnter(Phase::Lock), handle_lock)
         .add_systems(OnEnter(Phase::Pattern), detect_patterns)
-        .add_systems(OnEnter(Phase::Eliminate), eliminate);
+        .add_systems(OnEnter(Phase::Eliminate), eliminate)
+        .add_systems(OnExit(Screen::Playing), game_cleanup);
 }
 
 // TODO Is this necessary? Should it be a bunch of serial systems?
@@ -145,25 +148,9 @@ impl BlockBundle {
     }
 }
 
-#[derive(Resource, Deref, DerefMut)]
-struct FallTimer(Timer);
-
-impl FallTimer {
-    pub fn normal_drop(&mut self) {
-        // TODO make it depend on the current game level
-        self.0.set_duration(Duration::from_millis(1000));
-        self.0.reset();
-    }
-
-    pub fn soft_drop(&mut self) {
-        self.0.set_duration(Duration::from_millis(50));
-        self.0.reset();
-    }
-}
-
 // Marker component to update the phase debug
 #[derive(Component)]
-pub struct PhaseDebug;
+pub struct DebugText;
 
 fn game_setup(
     mut commands: Commands,
@@ -171,7 +158,8 @@ fn game_setup(
     asset_server: Res<AssetServer>,
 ) {
     let font_handle = asset_server.load("fonts/JetBrainsMonoNLNerdFont-Regular.ttf");
-    commands.insert_resource(FallTimer(Timer::from_seconds(1.0, TimerMode::Repeating)));
+    commands.init_resource::<FallTimer>();
+    commands.init_resource::<LockTimer>();
 
     commands.trigger(SpawnMatrix);
     commands.trigger(SpawnNextPieceZone);
@@ -182,19 +170,37 @@ fn game_setup(
         font_size: 18.0,
         color: palettes::css::RED.into(),
     };
-    commands.spawn((
-        TextBundle::from_sections([
-            TextSection::new("Phase: ", style.clone()),
-            TextSection::new(format!("{:?}", Phase::Generation), style),
-        ]),
-        PhaseDebug,
-    ));
+    commands.spawn((TextBundle::from_section("", style.clone()), DebugText));
     next_phase.set(Phase::Generation);
 }
 
-fn ui_update(phase: Res<State<Phase>>, mut text: Query<&mut Text, With<PhaseDebug>>) {
+fn game_cleanup(mut commands: Commands) {
+    commands.remove_resource::<FallTimer>();
+    commands.remove_resource::<LockTimer>();
+}
+
+fn ui_update(
+    mut text: Query<&mut Text, With<DebugText>>,
+    phase: Res<State<Phase>>,
+    fall_timer: Res<FallTimer>,
+    lock_timer: Res<LockTimer>,
+) {
     if let Ok(mut text) = text.get_single_mut() {
-        text.sections[1].value = format!("{}", phase.get());
+        let t = format!(
+            "Phase: {}, fall timer: {}, lock timer: {}",
+            phase.get(),
+            if fall_timer.paused() {
+                "paused".to_string()
+            } else {
+                format!("{}ms", fall_timer.elapsed().as_millis())
+            },
+            if lock_timer.paused() {
+                "paused".to_string()
+            } else {
+                format!("{}ms", lock_timer.elapsed().as_millis())
+            },
+        );
+        text.sections[0].value = t;
     }
 }
 
@@ -224,38 +230,68 @@ fn generate_piece(
     next_phase.set(Phase::Falling);
 }
 
+fn start_fall_timer(mut fall_timer: ResMut<FallTimer>) {
+    info!("Starting fall timer");
+    fall_timer.normal_drop();
+}
+
+fn first_drop(
+    mut current_piece_query: Query<(&mut Piece, &mut Pos), With<CurrentPiece>>,
+    state: Res<GameState>,
+) {
+    let (current_piece, mut pos) = current_piece_query.single_mut();
+    let down_pos = pos.down();
+    if current_piece.min_y(down_pos) >= 0 && state.matrix.is_pos_valid(&current_piece, down_pos) {
+        *pos = down_pos;
+    }
+}
+
+fn tick_timers(
+    mut fall_timer: ResMut<FallTimer>,
+    mut lock_timer: ResMut<LockTimer>,
+    time: Res<Time>,
+) {
+    fall_timer.tick(time.delta());
+    lock_timer.tick(time.delta());
+}
+
 fn handle_input(
     mut current_piece_query: Query<(&mut Piece, &mut Pos), With<CurrentPiece>>,
     state: Res<GameState>,
     action_state: Res<ActionState<Action>>,
-    time: Res<Time>,
     mut fall_timer: ResMut<FallTimer>,
+    mut lock_timer: ResMut<LockTimer>,
     mut next_phase: ResMut<NextState<Phase>>,
 ) {
     let (mut current_piece, mut pos) = current_piece_query.single_mut();
 
-    if action_state.just_pressed(&Action::Down) {
-        fall_timer.soft_drop();
-    } else if action_state.just_released(&Action::Down) {
-        fall_timer.normal_drop();
+    // If lock timer has expired -> move to LOCK state
+    if lock_timer.times_finished_this_tick() > 0 {
+        next_phase.set(Phase::Lock);
+        return;
     }
-    for _ in 0..fall_timer.tick(time.delta()).times_finished_this_tick() {
-        let down_pos = pos.down();
-        if current_piece.min_y(down_pos) >= 0 && state.matrix.is_pos_valid(&current_piece, down_pos)
-        {
-            *pos = down_pos;
-        } else {
-            next_phase.set(Phase::Lock);
-            fall_timer.normal_drop();
-            return;
+
+    if lock_timer.paused() {
+        for _ in 0..fall_timer.times_finished_this_tick() {
+            let down_pos = pos.down();
+            if state.matrix.is_pos_valid(&current_piece, down_pos) {
+                *pos = down_pos;
+            }
         }
     }
 
     if action_state.just_pressed(&Action::RotateLeft) {
-        current_piece.rotate_ccw();
+        let rotated = current_piece.rotated_ccw();
+        if state.matrix.is_pos_valid(&rotated, *pos) {
+            *current_piece = rotated;
+        }
     } else if action_state.just_pressed(&Action::RotateRight) {
-        current_piece.rotate_cw();
-    } else if action_state.just_pressed(&Action::Left) {
+        let rotated = current_piece.rotated_cw();
+        if state.matrix.is_pos_valid(&rotated, *pos) {
+            *current_piece = rotated;
+        }
+    }
+    if action_state.just_pressed(&Action::Left) {
         let left_pos = pos.left();
         if current_piece.min_x(left_pos) >= 0 && state.matrix.is_pos_valid(&current_piece, left_pos)
         {
@@ -268,8 +304,33 @@ fn handle_input(
         {
             *pos = right_pos;
         }
-    } else if action_state.just_pressed(&Action::Drop) {
-        next_phase.set(Phase::Generation);
+    }
+    if action_state.just_pressed(&Action::HardDrop) {
+        *pos = state.matrix.lowest_valid_pos(&current_piece, *pos);
+        next_phase.set(Phase::Lock);
+        return;
+    }
+    if action_state.just_pressed(&Action::SoftDrop) {
+        fall_timer.soft_drop();
+    } else if action_state.just_released(&Action::SoftDrop) {
+        fall_timer.normal_drop();
+    }
+
+    if state.matrix.is_on_surface(&current_piece, *pos) {
+        // If we just landed on a surface, kick off the lock timer
+        if lock_timer.paused() {
+            info!("Starting lock timer!");
+            fall_timer.pause();
+            lock_timer.reset();
+            lock_timer.unpause();
+        }
+    } else {
+        // If we were in lock phase but are free to fall, go back to "falling" phase
+        if !lock_timer.paused() {
+            lock_timer.pause();
+            fall_timer.normal_drop();
+            fall_timer.unpause();
+        }
     }
 }
 
@@ -313,7 +374,7 @@ fn handle_lock(
 }
 
 fn detect_patterns(
-    mut commands: Commands,
+    mut _commands: Commands,
     state: ResMut<GameState>,
     mut next_phase: ResMut<NextState<Phase>>,
 ) {
@@ -325,8 +386,8 @@ fn detect_patterns(
 }
 
 fn eliminate(
-    mut commands: Commands,
-    state: Res<GameState>,
+    mut _commands: Commands,
+    _state: Res<GameState>,
     mut next_phase: ResMut<NextState<Phase>>,
 ) {
     next_phase.set(Phase::Generation);

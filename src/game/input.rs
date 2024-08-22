@@ -13,8 +13,8 @@ pub enum Action {
     Right,
     RotateLeft,
     RotateRight,
-    Down,
-    Drop,
+    SoftDrop,
+    HardDrop,
 }
 
 impl Action {
@@ -24,8 +24,8 @@ impl Action {
             (Action::Right, KeyCode::ArrowRight),
             (Action::RotateLeft, KeyCode::KeyZ),
             (Action::RotateRight, KeyCode::KeyX),
-            (Action::Down, KeyCode::ArrowDown),
-            (Action::Drop, KeyCode::Space),
+            (Action::SoftDrop, KeyCode::ArrowDown),
+            (Action::HardDrop, KeyCode::Space),
         ])
     }
 }

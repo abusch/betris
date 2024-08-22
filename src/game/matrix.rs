@@ -26,11 +26,28 @@ impl Matrix {
 
     pub fn is_pos_valid(&self, piece: &Piece, pos: Pos) -> bool {
         for p in piece.block_positions(pos) {
-            if self.at(p) != Entity::PLACEHOLDER {
+            if p.x < 0
+                || p.x >= (MATRIX_WIDTH as isize)
+                || p.y < 0
+                || self.at(p) != Entity::PLACEHOLDER
+            {
                 return false;
             }
         }
         true
+    }
+
+    pub fn is_on_surface(&self, piece: &Piece, pos: Pos) -> bool {
+        !self.is_pos_valid(piece, pos.down())
+    }
+
+    pub fn lowest_valid_pos(&self, piece: &Piece, pos: Pos) -> Pos {
+        let mut p = pos;
+
+        while !self.is_on_surface(piece, p) {
+            p = p.down();
+        }
+        p
     }
 
     pub fn at(&self, pos: Pos) -> Entity {

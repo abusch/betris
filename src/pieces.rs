@@ -124,6 +124,18 @@ impl Piece {
         self.orientation = self.orientation.rotate_ccw();
     }
 
+    pub fn rotated_cw(&self) -> Self {
+        let mut rotated = *self;
+        rotated.rotate_cw();
+        rotated
+    }
+
+    pub fn rotated_ccw(&self) -> Self {
+        let mut rotated = *self;
+        rotated.rotate_ccw();
+        rotated
+    }
+
     pub fn color(&self) -> Color {
         match self.typ {
             Tetrimino::O => YELLOW.into(),
