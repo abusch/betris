@@ -179,7 +179,7 @@ impl From<Tetrimino> for Piece {
     }
 }
 
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Component, TryFromPrimitive)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Component, TryFromPrimitive, Reflect)]
 #[repr(usize)]
 pub enum Tetrimino {
     O = 0,
@@ -241,6 +241,7 @@ impl Facing {
     }
 }
 
+#[derive(Reflect)]
 pub struct Bag(Vec<Tetrimino>);
 
 impl Bag {

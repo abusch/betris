@@ -4,6 +4,7 @@ use bevy::{
     prelude::*,
     sprite::Anchor,
 };
+use bevy_inspector_egui::quick::ResourceInspectorPlugin;
 use input::Action;
 use leafwing_input_manager::action_state::ActionState;
 use spawners::{
@@ -32,6 +33,7 @@ pub fn plugin(app: &mut App) {
     app.init_state::<Phase>()
         .init_resource::<GameState>()
         .insert_resource(ClearColor(palettes::css::LIGHT_GRAY.into()))
+        .register_type::<GameState>()
         .add_plugins((input::plugin, spawners::plugin))
         .add_systems(OnEnter(Screen::Playing), game_setup)
         .add_systems(
@@ -46,12 +48,18 @@ pub fn plugin(app: &mut App) {
         .add_systems(OnEnter(Phase::Falling), start_fall_timer)
         .add_systems(
             Update,
-            (tick_timers, handle_input, update_piece_transform).run_if(in_state(Phase::Falling)),
+            (tick_timers, handle_input, update_piece_transform)
+                .chain()
+                .run_if(in_state(Phase::Falling)),
         )
         .add_systems(OnEnter(Phase::Lock), handle_lock)
         .add_systems(OnEnter(Phase::Pattern), detect_patterns)
         .add_systems(OnEnter(Phase::Eliminate), eliminate)
+        .add_systems(OnExit(Phase::Eliminate), update_blocks_transform)
         .add_systems(OnExit(Screen::Playing), game_cleanup);
+
+    #[cfg(feature = "dev")]
+    app.add_plugins(ResourceInspectorPlugin::<GameState>::default());
 }
 
 // TODO Is this necessary? Should it be a bunch of serial systems?
@@ -62,13 +70,14 @@ pub enum Phase {
     Falling,
     Lock,
     Pattern,
+    Animate,
     Eliminate,
     Completion,
     #[default]
     Noop,
 }
 
-#[derive(Default, Resource)]
+#[derive(Default, Resource, Reflect)]
 pub struct GameState {
     pub matrix: Matrix,
     pub bag: Bag,
@@ -93,6 +102,16 @@ impl Component for Block {
             let mut state = world.resource_mut::<GameState>();
             state.matrix.insert(pos, entity);
         });
+        // .on_remove(|mut world, entity, _component_id| {
+        //     let pos = world
+        //         .entity(entity)
+        //         .get::<Pos>()
+        //         .copied()
+        //         .expect("Block component without Pos!");
+        //     info!("Removing block {entity} at {pos}");
+        //     let mut state = world.resource_mut::<GameState>();
+        //     state.matrix.remove(pos);
+        // });
     }
 
     const STORAGE_TYPE: StorageType = StorageType::Table;
@@ -373,24 +392,65 @@ fn handle_lock(
     next_phase.set(Phase::Pattern);
 }
 
+#[derive(Component)]
+pub struct ToDelete;
+
 fn detect_patterns(
-    mut _commands: Commands,
+    mut commands: Commands,
     state: ResMut<GameState>,
     mut next_phase: ResMut<NextState<Phase>>,
 ) {
-    let lines = state.matrix.full_lines();
-    if !lines.is_empty() {
-        info!("Lines completed! {lines:?}");
+    for e in state.matrix.entities_to_delete() {
+        info!("Marking block {e} for deletion");
+        commands.entity(e).insert(ToDelete);
     }
     next_phase.set(Phase::Eliminate);
 }
 
 fn eliminate(
-    mut _commands: Commands,
-    _state: Res<GameState>,
+    mut commands: Commands,
+    to_delete: Query<Entity, With<ToDelete>>,
+    mut state: ResMut<GameState>,
     mut next_phase: ResMut<NextState<Phase>>,
 ) {
+    // Despawn entities that were deleted
+    for e in to_delete.iter() {
+        info!("Despawning block {e}");
+        commands.entity(e).despawn_recursive();
+    }
+
+    // Remove lines from the matrix
+    let mut lines = state.matrix.full_lines();
+    lines.reverse();
+    for line in lines {
+        info!("Removing line {line}");
+        state.matrix.delete_line(line);
+    }
+
+    // Reflect new positions
+    for y in 0..MATRIX_HEIGHT {
+        for x in 0..MATRIX_WIDTH {
+            let e = state.matrix.at(x, y);
+            if e != Entity::PLACEHOLDER {
+                if let Some(mut entity_commands) = commands.get_entity(e) {
+                    entity_commands.insert(Pos::new(x as isize, y as isize));
+                } else {
+                    warn!("Missing entity {e}");
+                }
+            }
+        }
+    }
+
     next_phase.set(Phase::Generation);
+}
+
+fn update_blocks_transform(mut blocks: Query<(&mut Transform, &Pos), With<Block>>) {
+    for (mut transform, pos) in blocks.iter_mut() {
+        // If the position of the block has changed, update its transform
+        info!("Updating transform for block at pos {}", *pos);
+        transform.translation.x = pos.x as f32;
+        transform.translation.y = pos.y as f32;
+    }
 }
 
 fn debug_stuff(mut gizmos: Gizmos) {

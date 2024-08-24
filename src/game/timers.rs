@@ -32,6 +32,7 @@ impl FallTimer {
     pub fn soft_drop(&mut self) {
         self.timer.set_duration(self.softdrop_duration);
         self.timer.reset();
+        self.timer.tick(self.softdrop_duration);
     }
 }
 

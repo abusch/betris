@@ -23,6 +23,7 @@ impl Action {
             (Action::Left, KeyCode::ArrowLeft),
             (Action::Right, KeyCode::ArrowRight),
             (Action::RotateLeft, KeyCode::KeyZ),
+            (Action::RotateLeft, KeyCode::ArrowUp),
             (Action::RotateRight, KeyCode::KeyX),
             (Action::SoftDrop, KeyCode::ArrowDown),
             (Action::HardDrop, KeyCode::Space),

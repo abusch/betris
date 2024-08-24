@@ -6,25 +6,26 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 [features]
 default = [
-    # Default to a native dev build.
-    "dev_native",
+  # Default to a native dev build.
+  "dev_native",
 ]
 dev = [
-    # Improve compile times for dev builds by linking Bevy as a dynamic library.
-    "bevy/dynamic_linking",
-    "bevy/bevy_dev_tools",
-    # "bevy-inspector-egui",
+  # Improve compile times for dev builds by linking Bevy as a dynamic library.
+  "bevy/dynamic_linking",
+  "bevy/bevy_dev_tools",
+  "bevy-inspector-egui",
 ]
 dev_native = [
-    "dev",
-    # Enable asset hot reloading for native dev builds.
-    "bevy/file_watcher",
-    # Enable embedded asset hot reloading for native dev builds.
-    "bevy/embedded_watcher",
+  "dev",
+  # Enable asset hot reloading for native dev builds.
+  "bevy/file_watcher",
+  # Enable embedded asset hot reloading for native dev builds.
+  "bevy/embedded_watcher",
 ]
 
 [dependencies]
 bevy = { version = "0.14.0", features = ["dynamic_linking"] }
+bevy-inspector-egui = { version = "0.25.2", optional = true }
 leafwing-input-manager = "0.15"
 num_enum = "0.7"
 rand = "0.8"
