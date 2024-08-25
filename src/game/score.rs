@@ -48,6 +48,10 @@ impl Score {
             ScoreEvent::HardDrop(n) => self.score += *n as u64 * 2,
         }
     }
+
+    pub fn formatted(&self) -> String {
+        format!("{:06}", self.score)
+    }
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Event)]

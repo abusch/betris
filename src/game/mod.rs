@@ -6,6 +6,7 @@ use bevy::{
 };
 use input::Action;
 use leafwing_input_manager::action_state::ActionState;
+use score::ScoreEvent;
 use spawners::{
     next_zone::NextTetriminoZone,
     piece::{CurrentPiece, Mino},
@@ -27,6 +28,7 @@ mod matrix;
 mod score;
 pub mod spawners;
 mod timers;
+mod ui;
 
 pub const MATRIX_WIDTH: u8 = 10;
 pub const MATRIX_HEIGHT: u8 = 40;
@@ -56,7 +58,7 @@ pub fn plugin(app: &mut App) {
         .add_systems(OnExit(Phase::Eliminate), update_blocks_transform)
         .add_systems(OnExit(Screen::Playing), game_cleanup);
 
-    app.add_plugins((input::plugin, spawners::plugin, score::plugin));
+    app.add_plugins((input::plugin, spawners::plugin, score::plugin, ui::plugin));
 
     #[cfg(feature = "dev")]
     app.add_plugins(debug::plugin);
@@ -129,12 +131,18 @@ impl BlockBundle {
     }
 }
 
-fn game_setup(mut commands: Commands, mut next_phase: ResMut<NextState<Phase>>) {
+fn game_setup(
+    mut commands: Commands,
+    mut next_phase: ResMut<NextState<Phase>>,
+    mut event_writer: EventWriter<ScoreEvent>,
+) {
     commands.init_resource::<FallTimer>();
     commands.init_resource::<LockTimer>();
 
     commands.trigger(SpawnMatrix);
     commands.trigger(SpawnNextZone);
+
+    event_writer.send(ScoreEvent::LevelStart(1));
 
     next_phase.set(Phase::Generation);
 }
@@ -345,6 +353,7 @@ fn eliminate(
     to_delete: Query<Entity, With<ToDelete>>,
     mut state: ResMut<GameState>,
     mut next_phase: ResMut<NextState<Phase>>,
+    mut event_writer: EventWriter<ScoreEvent>,
 ) {
     // Despawn entities that were deleted
     for e in to_delete.iter() {
@@ -354,6 +363,7 @@ fn eliminate(
 
     // Remove lines from the matrix
     let mut lines = state.matrix.full_lines();
+    let num_lines = lines.len();
     lines.reverse();
     for line in lines {
         info!("Removing line {line}");
@@ -367,6 +377,23 @@ fn eliminate(
         } else {
             warn!("Missing entity {entity}");
         }
+    }
+
+    match num_lines {
+        0 => (),
+        1 => {
+            event_writer.send(ScoreEvent::Single);
+        }
+        2 => {
+            event_writer.send(ScoreEvent::Double);
+        }
+        3 => {
+            event_writer.send(ScoreEvent::Triple);
+        }
+        4 => {
+            event_writer.send(ScoreEvent::Tetris);
+        }
+        n => warn!("How did we complete {n} lines?!?"),
     }
 
     next_phase.set(Phase::Generation);
