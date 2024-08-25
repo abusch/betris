@@ -1,18 +1,25 @@
-use bevy::ecs::system::lifetimeless::SRes;
 use bevy::prelude::*;
+use bevy::{color::palettes, ecs::system::lifetimeless::SRes};
 use iyes_perf_ui::{entry::PerfUiEntry, prelude::PerfUiRoot, PerfUiAppExt};
 
 use crate::{screen::Screen, AppSet};
 
-use super::Phase;
+use super::{Phase, SCALE};
 
 pub fn plugin(app: &mut App) {
-    app.add_perf_ui_simple_entry::<PerfUiPhase>().add_systems(
-        Update,
-        setup
-            .run_if(in_state(Screen::Playing))
-            .in_set(AppSet::Update),
-    );
+    app.add_perf_ui_simple_entry::<PerfUiPhase>()
+        .add_systems(
+            Update,
+            setup
+                .run_if(in_state(Screen::Playing))
+                .in_set(AppSet::Update),
+        )
+        .add_systems(
+            Update,
+            (debug_grid)
+                .run_if(in_state(Screen::Playing))
+                .in_set(AppSet::Update),
+        );
 }
 
 fn setup(mut commands: Commands, root: Query<Entity, Added<PerfUiRoot>>) {
@@ -20,6 +27,18 @@ fn setup(mut commands: Commands, root: Query<Entity, Added<PerfUiRoot>>) {
         info!("Adding phase debug perf ui entry");
         commands.entity(root).insert(PerfUiPhase);
     }
+}
+
+fn debug_grid(mut gizmos: Gizmos) {
+    gizmos
+        .grid_2d(
+            Vec2::new(-5.5 * SCALE, 0.5 * SCALE),
+            0.0,
+            UVec2::new(10, 22),
+            Vec2::new(SCALE, SCALE),
+            palettes::css::HOT_PINK,
+        )
+        .outer_edges();
 }
 
 #[derive(Component)]

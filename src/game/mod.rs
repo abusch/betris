@@ -38,7 +38,6 @@ pub fn plugin(app: &mut App) {
         .register_type::<GameState>()
         .add_plugins((input::plugin, spawners::plugin))
         .add_systems(OnEnter(Screen::Playing), game_setup)
-        .add_systems(Update, (debug_stuff).run_if(in_state(Screen::Playing)))
         .add_systems(
             OnEnter(Phase::Generation),
             (clean_up_pieces, generate_piece).chain(),
@@ -381,16 +380,4 @@ fn update_blocks_transform(mut blocks: Query<(&mut Transform, &Positioned), With
         transform.translation.x = pos.x as f32;
         transform.translation.y = pos.y as f32;
     }
-}
-
-fn debug_stuff(mut gizmos: Gizmos) {
-    gizmos
-        .grid_2d(
-            Vec2::new(-5.5 * SCALE, 0.5 * SCALE),
-            0.0,
-            UVec2::new(10, 22),
-            Vec2::new(SCALE, SCALE),
-            palettes::css::HOT_PINK,
-        )
-        .outer_edges();
 }
