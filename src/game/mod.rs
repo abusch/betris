@@ -4,7 +4,6 @@ use bevy::{
     prelude::*,
     sprite::Anchor,
 };
-use bevy_inspector_egui::quick::ResourceInspectorPlugin;
 use input::Action;
 use leafwing_input_manager::action_state::ActionState;
 use spawners::{
@@ -20,6 +19,8 @@ use crate::{
     screen::Screen,
 };
 
+#[cfg(feature = "dev")]
+mod debug;
 mod input;
 mod matrix;
 pub mod spawners;
@@ -36,10 +37,7 @@ pub fn plugin(app: &mut App) {
         .register_type::<GameState>()
         .add_plugins((input::plugin, spawners::plugin))
         .add_systems(OnEnter(Screen::Playing), game_setup)
-        .add_systems(
-            Update,
-            (ui_update, debug_stuff).run_if(in_state(Screen::Playing)),
-        )
+        .add_systems(Update, (debug_stuff).run_if(in_state(Screen::Playing)))
         .add_systems(
             OnEnter(Phase::Generation),
             (clean_up_pieces, generate_piece).chain(),
@@ -59,7 +57,8 @@ pub fn plugin(app: &mut App) {
         .add_systems(OnExit(Screen::Playing), game_cleanup);
 
     #[cfg(feature = "dev")]
-    app.add_plugins(ResourceInspectorPlugin::<GameState>::default());
+    app.add_plugins(debug::plugin);
+    // app.add_plugins(ResourceInspectorPlugin::<GameState>::default());
 }
 
 // TODO Is this necessary? Should it be a bunch of serial systems?
@@ -167,60 +166,19 @@ impl BlockBundle {
     }
 }
 
-// Marker component to update the phase debug
-#[derive(Component)]
-pub struct DebugText;
-
-fn game_setup(
-    mut commands: Commands,
-    mut next_phase: ResMut<NextState<Phase>>,
-    asset_server: Res<AssetServer>,
-) {
-    let font_handle = asset_server.load("fonts/JetBrainsMonoNLNerdFont-Regular.ttf");
+fn game_setup(mut commands: Commands, mut next_phase: ResMut<NextState<Phase>>) {
     commands.init_resource::<FallTimer>();
     commands.init_resource::<LockTimer>();
 
     commands.trigger(SpawnMatrix);
     commands.trigger(SpawnNextPieceZone);
 
-    // Debug display
-    let style = TextStyle {
-        font: font_handle,
-        font_size: 18.0,
-        color: palettes::css::RED.into(),
-    };
-    commands.spawn((TextBundle::from_section("", style.clone()), DebugText));
     next_phase.set(Phase::Generation);
 }
 
 fn game_cleanup(mut commands: Commands) {
     commands.remove_resource::<FallTimer>();
     commands.remove_resource::<LockTimer>();
-}
-
-fn ui_update(
-    mut text: Query<&mut Text, With<DebugText>>,
-    phase: Res<State<Phase>>,
-    fall_timer: Res<FallTimer>,
-    lock_timer: Res<LockTimer>,
-) {
-    if let Ok(mut text) = text.get_single_mut() {
-        let t = format!(
-            "Phase: {}, fall timer: {}, lock timer: {}",
-            phase.get(),
-            if fall_timer.paused() {
-                "paused".to_string()
-            } else {
-                format!("{}ms", fall_timer.elapsed().as_millis())
-            },
-            if lock_timer.paused() {
-                "paused".to_string()
-            } else {
-                format!("{}ms", lock_timer.elapsed().as_millis())
-            },
-        );
-        text.sections[0].value = t;
-    }
 }
 
 fn clean_up_pieces(mut commands: Commands, pieces: Query<Entity, With<Piece>>) {
