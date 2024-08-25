@@ -14,6 +14,9 @@ pub fn plugin(app: &mut App) {
         .observe(piece::spawn);
 }
 
+#[derive(Copy, Clone, Component, Deref, DerefMut)]
+pub struct Positioned(pub(crate) Pos);
+
 #[derive(Event)]
 pub struct SpawnMatrix;
 

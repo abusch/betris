@@ -1,5 +1,3 @@
-use std::f32::consts::PI;
-
 use bevy::{color::palettes, prelude::*};
 use num_enum::TryFromPrimitive;
 use rand::thread_rng;
@@ -107,7 +105,7 @@ impl Piece {
         }
     }
 
-    pub fn block_positions(&self, pos: Pos) -> [Pos; 4] {
+    pub fn block_positions(&self, pos: &Pos) -> [Pos; 4] {
         self.block_offsets()
             .map(|off| Pos::new(pos.x + off.0, pos.y + off.1))
     }
@@ -148,7 +146,7 @@ impl Piece {
         }
     }
 
-    pub fn min_y(&self, pos: Pos) -> isize {
+    pub fn min_y(&self, pos: &Pos) -> isize {
         self.block_positions(pos)
             .iter()
             .map(|p| p.y)
@@ -156,7 +154,7 @@ impl Piece {
             .unwrap_or_default()
     }
 
-    pub fn min_x(&self, pos: Pos) -> isize {
+    pub fn min_x(&self, pos: &Pos) -> isize {
         self.block_positions(pos)
             .iter()
             .map(|p| p.x)
@@ -164,7 +162,7 @@ impl Piece {
             .unwrap_or_default()
     }
 
-    pub fn max_x(&self, pos: Pos) -> isize {
+    pub fn max_x(&self, pos: &Pos) -> isize {
         self.block_positions(pos)
             .iter()
             .map(|p| p.x)
@@ -228,15 +226,6 @@ impl Facing {
             Facing::East => Facing::North,
             Facing::South => Facing::East,
             Facing::West => Facing::South,
-        }
-    }
-
-    pub fn angle(&self) -> f32 {
-        match self {
-            Facing::North => 0.0,
-            Facing::East => -PI / 2.0,
-            Facing::South => PI,
-            Facing::West => PI / 2.0,
         }
     }
 }

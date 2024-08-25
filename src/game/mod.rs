@@ -7,8 +7,9 @@ use bevy::{
 use input::Action;
 use leafwing_input_manager::action_state::ActionState;
 use spawners::{
-    next_piece_zone::NextPieceDisplay, piece::CurrentPiece, SpawnMatrix, SpawnNextPieceZone,
-    SpawnPiece,
+    next_piece_zone::NextPieceDisplay,
+    piece::{CurrentPiece, Mino},
+    Positioned, SpawnMatrix, SpawnNextPieceZone, SpawnPiece,
 };
 use timers::{FallTimer, LockTimer};
 
@@ -82,10 +83,6 @@ pub struct GameState {
     pub bag: Bag,
 }
 
-/// A mino (i.e block) which is part of a piece
-#[derive(Component)]
-pub struct Mino;
-
 /// A static block that has been committed to the matrix.
 pub struct Block;
 
@@ -94,57 +91,23 @@ impl Component for Block {
         hooks.on_add(|mut world, entity, _component_id| {
             let pos = world
                 .entity(entity)
-                .get::<Pos>()
+                .get::<Positioned>()
                 .copied()
                 .expect("Block component without Pos!");
-            info!("Block was added at {pos}");
+            info!("Block was added at {}", *pos);
             let mut state = world.resource_mut::<GameState>();
-            state.matrix.insert(pos, entity);
+            state.matrix.insert(*pos, entity);
         });
-        // .on_remove(|mut world, entity, _component_id| {
-        //     let pos = world
-        //         .entity(entity)
-        //         .get::<Pos>()
-        //         .copied()
-        //         .expect("Block component without Pos!");
-        //     info!("Removing block {entity} at {pos}");
-        //     let mut state = world.resource_mut::<GameState>();
-        //     state.matrix.remove(pos);
-        // });
     }
 
     const STORAGE_TYPE: StorageType = StorageType::Table;
 }
 
 #[derive(Bundle)]
-pub struct MinoBundle {
-    sprite: SpriteBundle,
-    mino: Mino,
-}
-
-impl MinoBundle {
-    pub fn new(pos: Pos, color: Color) -> Self {
-        Self {
-            sprite: SpriteBundle {
-                sprite: Sprite {
-                    custom_size: Some(Vec2::splat(1.0)),
-                    anchor: Anchor::Center,
-                    color,
-                    ..default()
-                },
-                transform: Transform::from_xyz(pos.x as f32, pos.y as f32, 1.0),
-                ..default()
-            },
-            mino: Mino,
-        }
-    }
-}
-
-#[derive(Bundle)]
 pub struct BlockBundle {
     sprite: SpriteBundle,
     block: Block,
-    pos: Pos,
+    pos: Positioned,
 }
 
 impl BlockBundle {
@@ -160,7 +123,7 @@ impl BlockBundle {
                 transform: Transform::from_xyz(pos.x as f32, pos.y as f32, 1.0),
                 ..default()
             },
-            pos,
+            pos: Positioned(pos),
             block: Block,
         }
     }
@@ -213,13 +176,13 @@ fn start_fall_timer(mut fall_timer: ResMut<FallTimer>) {
 }
 
 fn first_drop(
-    mut current_piece_query: Query<(&mut Piece, &mut Pos), With<CurrentPiece>>,
+    mut current_piece_query: Query<(&mut Piece, &mut Positioned), With<CurrentPiece>>,
     state: Res<GameState>,
 ) {
     let (current_piece, mut pos) = current_piece_query.single_mut();
     let down_pos = pos.down();
-    if current_piece.min_y(down_pos) >= 0 && state.matrix.is_pos_valid(&current_piece, down_pos) {
-        *pos = down_pos;
+    if current_piece.min_y(&down_pos) >= 0 && state.matrix.is_pos_valid(&current_piece, &down_pos) {
+        **pos = down_pos;
     }
 }
 
@@ -233,7 +196,7 @@ fn tick_timers(
 }
 
 fn handle_input(
-    mut current_piece_query: Query<(&mut Piece, &mut Pos), With<CurrentPiece>>,
+    mut current_piece_query: Query<(&mut Piece, &mut Positioned), With<CurrentPiece>>,
     state: Res<GameState>,
     action_state: Res<ActionState<Action>>,
     mut fall_timer: ResMut<FallTimer>,
@@ -251,39 +214,40 @@ fn handle_input(
     if lock_timer.paused() {
         for _ in 0..fall_timer.times_finished_this_tick() {
             let down_pos = pos.down();
-            if state.matrix.is_pos_valid(&current_piece, down_pos) {
-                *pos = down_pos;
+            if state.matrix.is_pos_valid(&current_piece, &down_pos) {
+                **pos = down_pos;
             }
         }
     }
 
     if action_state.just_pressed(&Action::RotateLeft) {
         let rotated = current_piece.rotated_ccw();
-        if state.matrix.is_pos_valid(&rotated, *pos) {
+        if state.matrix.is_pos_valid(&rotated, &pos) {
             *current_piece = rotated;
         }
     } else if action_state.just_pressed(&Action::RotateRight) {
         let rotated = current_piece.rotated_cw();
-        if state.matrix.is_pos_valid(&rotated, *pos) {
+        if state.matrix.is_pos_valid(&rotated, &pos) {
             *current_piece = rotated;
         }
     }
     if action_state.just_pressed(&Action::Left) {
         let left_pos = pos.left();
-        if current_piece.min_x(left_pos) >= 0 && state.matrix.is_pos_valid(&current_piece, left_pos)
+        if current_piece.min_x(&left_pos) >= 0
+            && state.matrix.is_pos_valid(&current_piece, &left_pos)
         {
-            *pos = left_pos;
+            **pos = left_pos;
         }
     } else if action_state.just_pressed(&Action::Right) {
         let right_pos = pos.right();
-        if current_piece.max_x(right_pos) <= 9
-            && state.matrix.is_pos_valid(&current_piece, right_pos)
+        if current_piece.max_x(&right_pos) <= 9
+            && state.matrix.is_pos_valid(&current_piece, &right_pos)
         {
-            *pos = right_pos;
+            **pos = right_pos;
         }
     }
     if action_state.just_pressed(&Action::HardDrop) {
-        *pos = state.matrix.lowest_valid_pos(&current_piece, *pos);
+        **pos = state.matrix.lowest_valid_pos(&current_piece, &pos);
         next_phase.set(Phase::Lock);
         return;
     }
@@ -293,7 +257,7 @@ fn handle_input(
         fall_timer.normal_drop();
     }
 
-    if state.matrix.is_on_surface(&current_piece, *pos) {
+    if state.matrix.is_on_surface(&current_piece, &pos) {
         // If we just landed on a surface, kick off the lock timer
         if lock_timer.paused() {
             info!("Starting lock timer!");
@@ -316,7 +280,7 @@ fn handle_input(
 /// The piece's position (as tracked by `Pos`) is the position (in grid coordinates) of the "visual
 /// center" of the piece. The blocks that make up the piece will be positioned relative to that.
 fn update_piece_transform(
-    mut piece: Query<(&mut Transform, Ref<Pos>, Ref<Piece>, &Children), With<CurrentPiece>>,
+    mut piece: Query<(&mut Transform, Ref<Positioned>, Ref<Piece>, &Children), With<CurrentPiece>>,
     mut blocks: Query<&mut Transform, (With<Mino>, Without<CurrentPiece>)>,
 ) {
     if let Ok((mut transform, pos, piece, children)) = piece.get_single_mut() {
@@ -341,7 +305,7 @@ fn update_piece_transform(
 fn handle_lock(
     mut commands: Commands,
     state: Res<GameState>,
-    current_piece: Query<(&Pos, &Piece), With<CurrentPiece>>,
+    current_piece: Query<(&Positioned, &Piece), With<CurrentPiece>>,
     mut next_phase: ResMut<NextState<Phase>>,
 ) {
     if let Ok((piece_pos, piece)) = current_piece.get_single() {
@@ -349,7 +313,7 @@ fn handle_lock(
         commands
             .entity(state.matrix.root_entity)
             .with_children(|children| {
-                for block_pos in piece.block_positions(*piece_pos) {
+                for block_pos in piece.block_positions(piece_pos) {
                     children.spawn(BlockBundle::new(block_pos));
                 }
             });
@@ -399,7 +363,7 @@ fn eliminate(
             let e = state.matrix.at(x, y);
             if e != Entity::PLACEHOLDER {
                 if let Some(mut entity_commands) = commands.get_entity(e) {
-                    entity_commands.insert(Pos::new(x as isize, y as isize));
+                    entity_commands.insert(Positioned(Pos::new(x as isize, y as isize)));
                 } else {
                     warn!("Missing entity {e}");
                 }
@@ -410,10 +374,10 @@ fn eliminate(
     next_phase.set(Phase::Generation);
 }
 
-fn update_blocks_transform(mut blocks: Query<(&mut Transform, &Pos), With<Block>>) {
+fn update_blocks_transform(mut blocks: Query<(&mut Transform, &Positioned), With<Block>>) {
     for (mut transform, pos) in blocks.iter_mut() {
         // If the position of the block has changed, update its transform
-        info!("Updating transform for block at pos {}", *pos);
+        info!("Updating transform for block at pos {}", **pos);
         transform.translation.x = pos.x as f32;
         transform.translation.y = pos.y as f32;
     }

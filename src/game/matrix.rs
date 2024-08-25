@@ -24,7 +24,7 @@ impl Matrix {
         }
     }
 
-    pub fn is_pos_valid(&self, piece: &Piece, pos: Pos) -> bool {
+    pub fn is_pos_valid(&self, piece: &Piece, pos: &Pos) -> bool {
         for p in piece.block_positions(pos) {
             if p.x < 0
                 || p.x >= (MATRIX_WIDTH as isize)
@@ -37,14 +37,14 @@ impl Matrix {
         true
     }
 
-    pub fn is_on_surface(&self, piece: &Piece, pos: Pos) -> bool {
-        !self.is_pos_valid(piece, pos.down())
+    pub fn is_on_surface(&self, piece: &Piece, pos: &Pos) -> bool {
+        !self.is_pos_valid(piece, &pos.down())
     }
 
-    pub fn lowest_valid_pos(&self, piece: &Piece, pos: Pos) -> Pos {
-        let mut p = pos;
+    pub fn lowest_valid_pos(&self, piece: &Piece, pos: &Pos) -> Pos {
+        let mut p = *pos;
 
-        while !self.is_on_surface(piece, p) {
+        while !self.is_on_surface(piece, &p) {
             p = p.down();
         }
         p
@@ -52,10 +52,6 @@ impl Matrix {
 
     pub fn at(&self, x: usize, y: usize) -> Entity {
         self.board[y * MATRIX_WIDTH + x]
-    }
-
-    pub fn at_mut(&mut self, x: usize, y: usize) -> &mut Entity {
-        &mut self.board[y * MATRIX_WIDTH + x]
     }
 
     pub fn at_pos(&self, pos: Pos) -> Entity {
@@ -99,16 +95,5 @@ impl Matrix {
             .copy_within(((line + 1) * MATRIX_WIDTH).., line * MATRIX_WIDTH);
         // Clear out the top-most row
         self.board[((MATRIX_HEIGHT - 1) * MATRIX_WIDTH)..].fill(Entity::PLACEHOLDER);
-        // for x in 0..MATRIX_WIDTH {
-        //     for y in line..(MATRIX_HEIGHT - 1) {
-        //         *self.at_mut(x, y) = self.at(x, y + 1);
-        //     }
-        //     *self.at_mut(x, MATRIX_HEIGHT - 1) = Entity::PLACEHOLDER;
-        // }
-    }
-
-    pub fn remove(&mut self, pos: Pos) {
-        info!("Block removed from matrix at {pos}");
-        self.board[pos.to_index()] = Entity::PLACEHOLDER;
     }
 }

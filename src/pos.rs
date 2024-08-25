@@ -1,10 +1,8 @@
 use std::fmt::Display;
 
-use bevy::prelude::*;
-
 use crate::game::MATRIX_WIDTH;
 
-#[derive(Component, Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Pos {
     pub x: isize,
     pub y: isize,
