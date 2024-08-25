@@ -358,16 +358,24 @@ fn handle_input(
 /// The piece's position (as tracked by `Pos`) is the position (in grid coordinates) of the "visual
 /// center" of the piece. The blocks that make up the piece will be positioned relative to that.
 fn update_piece_transform(
-    mut piece: Query<(&mut Transform, Ref<Pos>, Ref<Piece>), With<CurrentPiece>>,
+    mut piece: Query<(&mut Transform, Ref<Pos>, Ref<Piece>, &Children), With<CurrentPiece>>,
+    mut blocks: Query<&mut Transform, (With<Mino>, Without<CurrentPiece>)>,
 ) {
-    if let Ok((mut transform, pos, piece)) = piece.get_single_mut() {
+    if let Ok((mut transform, pos, piece, children)) = piece.get_single_mut() {
         // If the position of the piece has changed, update its transform
         if pos.is_changed() {
+            info!("Updating current piece transform");
             transform.translation.x = pos.x as f32;
             transform.translation.y = pos.y as f32;
         }
         if piece.is_changed() {
-            transform.rotation = Quat::from_rotation_z(piece.orientation.angle());
+            info!("Updating current piece's blocks transform");
+            for (child, offset) in children.iter().zip(piece.block_offsets()) {
+                if let Ok(mut transform) = blocks.get_mut(*child) {
+                    transform.translation.x = offset.0 as f32;
+                    transform.translation.y = offset.1 as f32;
+                }
+            }
         }
     }
 }
