@@ -3,8 +3,7 @@ use bevy::prelude::*;
 #[cfg(feature = "dev")]
 mod dev_tools;
 mod game;
-mod pieces;
-mod pos;
+mod model;
 mod screen;
 
 pub struct AppPlugin;

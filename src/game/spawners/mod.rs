@@ -1,16 +1,16 @@
 use bevy::prelude::*;
 
-use crate::{pieces::Piece, pos::Pos};
+use crate::model::{Pos, Tetrimino};
 
 pub mod matrix;
-pub mod next_piece_zone;
+pub mod next_zone;
 pub mod piece;
 
-pub const INITIAL_POS: Pos = Pos::new(5, 21);
+const INITIAL_POS: Pos = Pos::new(5, 21);
 
 pub fn plugin(app: &mut App) {
     app.observe(matrix::spawn)
-        .observe(next_piece_zone::spawn)
+        .observe(next_zone::spawn)
         .observe(piece::spawn);
 }
 
@@ -21,17 +21,17 @@ pub struct Positioned(pub(crate) Pos);
 pub struct SpawnMatrix;
 
 #[derive(Event)]
-pub struct SpawnPiece(pub Piece, pub Pos, pub bool);
+pub struct SpawnPiece(pub Tetrimino, pub Pos, pub bool);
 
 impl SpawnPiece {
-    pub fn current(piece: Piece) -> Self {
-        Self(piece, INITIAL_POS, true)
+    pub fn current(tetrimino: Tetrimino) -> Self {
+        Self(tetrimino, INITIAL_POS, true)
     }
 
-    pub fn next(piece: Piece) -> Self {
-        Self(piece, Pos::ZERO, false)
+    pub fn next(tetrimino: Tetrimino) -> Self {
+        Self(tetrimino, Pos::ZERO, false)
     }
 }
 
 #[derive(Event)]
-pub struct SpawnNextPieceZone;
+pub struct SpawnNextZone;

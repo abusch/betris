@@ -7,16 +7,16 @@ use bevy::{
 use input::Action;
 use leafwing_input_manager::action_state::ActionState;
 use spawners::{
-    next_piece_zone::NextPieceDisplay,
+    next_zone::NextTetriminoZone,
     piece::{CurrentPiece, Mino},
-    Positioned, SpawnMatrix, SpawnNextPieceZone, SpawnPiece,
+    Positioned, SpawnMatrix, SpawnNextZone, SpawnPiece,
 };
 use timers::{FallTimer, LockTimer};
 
 use self::matrix::Matrix;
 use crate::{
-    pieces::{Bag, Piece},
-    pos::Pos,
+    model::Pos,
+    model::{Bag, Tetrimino},
     screen::Screen,
 };
 
@@ -27,16 +27,15 @@ mod matrix;
 pub mod spawners;
 mod timers;
 
-pub const MATRIX_WIDTH: usize = 10;
-pub const MATRIX_HEIGHT: usize = 40;
+pub const MATRIX_WIDTH: u8 = 10;
+pub const MATRIX_HEIGHT: u8 = 40;
 pub const SCALE: f32 = 20.0;
 
 pub fn plugin(app: &mut App) {
     app.init_state::<Phase>()
         .init_resource::<GameState>()
-        .insert_resource(ClearColor(palettes::css::LIGHT_GRAY.into()))
         .register_type::<GameState>()
-        .add_plugins((input::plugin, spawners::plugin))
+        .insert_resource(ClearColor(palettes::css::LIGHT_GRAY.into()))
         .add_systems(OnEnter(Screen::Playing), game_setup)
         .add_systems(
             OnEnter(Phase::Generation),
@@ -56,12 +55,13 @@ pub fn plugin(app: &mut App) {
         .add_systems(OnExit(Phase::Eliminate), update_blocks_transform)
         .add_systems(OnExit(Screen::Playing), game_cleanup);
 
+    app.add_plugins((input::plugin, spawners::plugin));
+
     #[cfg(feature = "dev")]
     app.add_plugins(debug::plugin);
     // app.add_plugins(ResourceInspectorPlugin::<GameState>::default());
 }
 
-// TODO Is this necessary? Should it be a bunch of serial systems?
 #[allow(unused)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Hash, States, strum::Display)]
 pub enum Phase {
@@ -133,7 +133,7 @@ fn game_setup(mut commands: Commands, mut next_phase: ResMut<NextState<Phase>>) 
     commands.init_resource::<LockTimer>();
 
     commands.trigger(SpawnMatrix);
-    commands.trigger(SpawnNextPieceZone);
+    commands.trigger(SpawnNextZone);
 
     next_phase.set(Phase::Generation);
 }
@@ -143,9 +143,9 @@ fn game_cleanup(mut commands: Commands) {
     commands.remove_resource::<LockTimer>();
 }
 
-fn clean_up_pieces(mut commands: Commands, pieces: Query<Entity, With<Piece>>) {
+fn clean_up_pieces(mut commands: Commands, pieces: Query<Entity, With<Tetrimino>>) {
     for piece in pieces.into_iter() {
-        info!("Despawning piece");
+        info!("Despawning tetrimino");
         commands.entity(piece).despawn_recursive();
     }
 }
@@ -154,16 +154,16 @@ fn generate_piece(
     mut commands: Commands,
     mut state: ResMut<GameState>,
     mut next_phase: ResMut<NextState<Phase>>,
-    next_piece_zone: Query<Entity, With<NextPieceDisplay>>,
+    next_zone: Query<Entity, With<NextTetriminoZone>>,
 ) {
-    let next_piece_zone_entity = next_piece_zone.single();
-    let piece: Piece = state.bag.pop_next().into();
-    let next_piece: Piece = state.bag.peek_next().into();
+    let next_zone_entity = next_zone.single();
+    let tetrimino: Tetrimino = state.bag.pop_next().into();
+    let next_piece: Tetrimino = state.bag.peek_next().into();
 
-    info!("Generating new piece {:?}", piece.typ);
+    info!("Generating new tetrimino {:?}", tetrimino.kind);
 
-    commands.trigger_targets(SpawnPiece::current(piece), state.matrix.root_entity);
-    commands.trigger_targets(SpawnPiece::next(next_piece), next_piece_zone_entity);
+    commands.trigger_targets(SpawnPiece::current(tetrimino), state.matrix.root_entity);
+    commands.trigger_targets(SpawnPiece::next(next_piece), next_zone_entity);
 
     // TODO ghost piece
     next_phase.set(Phase::Falling);
@@ -175,7 +175,7 @@ fn start_fall_timer(mut fall_timer: ResMut<FallTimer>) {
 }
 
 fn first_drop(
-    mut current_piece_query: Query<(&mut Piece, &mut Positioned), With<CurrentPiece>>,
+    mut current_piece_query: Query<(&mut Tetrimino, &mut Positioned), With<CurrentPiece>>,
     state: Res<GameState>,
 ) {
     let (current_piece, mut pos) = current_piece_query.single_mut();
@@ -195,7 +195,7 @@ fn tick_timers(
 }
 
 fn handle_input(
-    mut current_piece_query: Query<(&mut Piece, &mut Positioned), With<CurrentPiece>>,
+    mut current_piece_query: Query<(&mut Tetrimino, &mut Positioned), With<CurrentPiece>>,
     state: Res<GameState>,
     action_state: Res<ActionState<Action>>,
     mut fall_timer: ResMut<FallTimer>,
@@ -279,7 +279,10 @@ fn handle_input(
 /// The piece's position (as tracked by `Pos`) is the position (in grid coordinates) of the "visual
 /// center" of the piece. The blocks that make up the piece will be positioned relative to that.
 fn update_piece_transform(
-    mut piece: Query<(&mut Transform, Ref<Positioned>, Ref<Piece>, &Children), With<CurrentPiece>>,
+    mut piece: Query<
+        (&mut Transform, Ref<Positioned>, Ref<Tetrimino>, &Children),
+        With<CurrentPiece>,
+    >,
     mut blocks: Query<&mut Transform, (With<Mino>, Without<CurrentPiece>)>,
 ) {
     if let Ok((mut transform, pos, piece, children)) = piece.get_single_mut() {
@@ -293,8 +296,8 @@ fn update_piece_transform(
             info!("Updating current piece's blocks transform");
             for (child, offset) in children.iter().zip(piece.block_offsets()) {
                 if let Ok(mut transform) = blocks.get_mut(*child) {
-                    transform.translation.x = offset.0 as f32;
-                    transform.translation.y = offset.1 as f32;
+                    transform.translation.x = offset.x as f32;
+                    transform.translation.y = offset.y as f32;
                 }
             }
         }
@@ -304,7 +307,7 @@ fn update_piece_transform(
 fn handle_lock(
     mut commands: Commands,
     state: Res<GameState>,
-    current_piece: Query<(&Positioned, &Piece), With<CurrentPiece>>,
+    current_piece: Query<(&Positioned, &Tetrimino), With<CurrentPiece>>,
     mut next_phase: ResMut<NextState<Phase>>,
 ) {
     if let Ok((piece_pos, piece)) = current_piece.get_single() {
@@ -357,16 +360,11 @@ fn eliminate(
     }
 
     // Reflect new positions
-    for y in 0..MATRIX_HEIGHT {
-        for x in 0..MATRIX_WIDTH {
-            let e = state.matrix.at(x, y);
-            if e != Entity::PLACEHOLDER {
-                if let Some(mut entity_commands) = commands.get_entity(e) {
-                    entity_commands.insert(Positioned(Pos::new(x as isize, y as isize)));
-                } else {
-                    warn!("Missing entity {e}");
-                }
-            }
+    for (pos, entity) in state.matrix.iter_non_empty() {
+        if let Some(mut entity_commands) = commands.get_entity(entity) {
+            entity_commands.insert(Positioned(pos));
+        } else {
+            warn!("Missing entity {entity}");
         }
     }
 

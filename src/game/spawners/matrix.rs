@@ -7,11 +7,14 @@ use super::SpawnMatrix;
 pub fn spawn(_trigger: Trigger<SpawnMatrix>, mut commands: Commands, mut state: ResMut<GameState>) {
     // Matrix i.e main game area
     state.matrix.root_entity = commands
-        .spawn((SpatialBundle {
-            transform: Transform::from_xyz(-200.0, -200.0, 1.0)
-                .with_scale(Vec3::new(SCALE, SCALE, 1.0)),
-            ..default()
-        },))
+        .spawn((
+            Name::new("Matrix"),
+            SpatialBundle {
+                transform: Transform::from_xyz(-200.0, -200.0, 1.0)
+                    .with_scale(Vec3::new(SCALE, SCALE, 1.0)),
+                ..default()
+            },
+        ))
         .with_children(|children| {
             // "floor"
             children.spawn(SpriteBundle {

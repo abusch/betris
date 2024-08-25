@@ -1,6 +1,6 @@
 use bevy::{prelude::*, sprite::Anchor};
 
-use crate::{pieces::Piece, pos::Pos};
+use crate::model::{Pos, Tetrimino};
 
 use super::{Positioned, SpawnPiece};
 
@@ -19,11 +19,13 @@ pub fn spawn(trigger: Trigger<SpawnPiece>, mut commands: Commands) {
             pos: Positioned(*pos),
         });
         if *is_current {
-            builder.insert(CurrentPiece);
+            builder.insert((Name::new("Current piece"), CurrentPiece));
+        } else {
+            builder.insert(Name::new("Next piece"));
         }
         builder.with_children(|children| {
             for p in piece.block_positions(&Pos::ZERO) {
-                children.spawn(MinoBundle::new(p, piece.color()));
+                children.spawn(MinoBundle::new(p, piece.kind.color()));
             }
         });
     });
@@ -32,7 +34,7 @@ pub fn spawn(trigger: Trigger<SpawnPiece>, mut commands: Commands) {
 #[derive(Bundle)]
 pub struct PieceBundle {
     spatial: SpatialBundle,
-    piece: Piece,
+    piece: Tetrimino,
     pos: Positioned,
 }
 
