@@ -12,7 +12,7 @@ use spawners::{
     piece::{CurrentPiece, Mino},
     Positioned, SpawnMatrix, SpawnNextZone, SpawnPiece,
 };
-use timers::{FallTimer, LockTimer};
+use timers::Timers;
 
 use self::matrix::Matrix;
 use crate::{
@@ -136,8 +136,7 @@ fn game_setup(
     mut next_phase: ResMut<NextState<Phase>>,
     mut event_writer: EventWriter<ScoreEvent>,
 ) {
-    commands.init_resource::<FallTimer>();
-    commands.init_resource::<LockTimer>();
+    commands.init_resource::<Timers>();
 
     commands.trigger(SpawnMatrix);
     commands.trigger(SpawnNextZone);
@@ -148,8 +147,7 @@ fn game_setup(
 }
 
 fn game_cleanup(mut commands: Commands) {
-    commands.remove_resource::<FallTimer>();
-    commands.remove_resource::<LockTimer>();
+    commands.remove_resource::<Timers>();
 }
 
 fn clean_up_pieces(mut commands: Commands, pieces: Query<Entity, With<Tetrimino>>) {
@@ -178,9 +176,9 @@ fn generate_piece(
     next_phase.set(Phase::Falling);
 }
 
-fn start_fall_timer(mut fall_timer: ResMut<FallTimer>) {
+fn start_fall_timer(mut timers: ResMut<Timers>) {
     info!("Starting fall timer");
-    fall_timer.normal_drop();
+    timers.fall.normal_drop();
 }
 
 fn first_drop(
@@ -194,33 +192,27 @@ fn first_drop(
     }
 }
 
-fn tick_timers(
-    mut fall_timer: ResMut<FallTimer>,
-    mut lock_timer: ResMut<LockTimer>,
-    time: Res<Time>,
-) {
-    fall_timer.tick(time.delta());
-    lock_timer.tick(time.delta());
+fn tick_timers(mut timers: ResMut<Timers>, time: Res<Time>) {
+    timers.tick(time.delta());
 }
 
 fn handle_input(
     mut current_piece_query: Query<(&mut Tetrimino, &mut Positioned), With<CurrentPiece>>,
     state: Res<GameState>,
     action_state: Res<ActionState<Action>>,
-    mut fall_timer: ResMut<FallTimer>,
-    mut lock_timer: ResMut<LockTimer>,
+    mut timers: ResMut<Timers>,
     mut next_phase: ResMut<NextState<Phase>>,
 ) {
     let (mut current_piece, mut pos) = current_piece_query.single_mut();
 
     // If lock timer has expired -> move to LOCK state
-    if lock_timer.times_finished_this_tick() > 0 {
+    if timers.lock.times_finished_this_tick() > 0 {
         next_phase.set(Phase::Lock);
         return;
     }
 
-    if lock_timer.paused() {
-        for _ in 0..fall_timer.times_finished_this_tick() {
+    if timers.lock.paused() {
+        for _ in 0..timers.fall.times_finished_this_tick() {
             let down_pos = pos.down();
             if state.matrix.is_pos_valid(&current_piece, &down_pos) {
                 **pos = down_pos;
@@ -260,25 +252,25 @@ fn handle_input(
         return;
     }
     if action_state.just_pressed(&Action::SoftDrop) {
-        fall_timer.soft_drop();
+        timers.fall.soft_drop();
     } else if action_state.just_released(&Action::SoftDrop) {
-        fall_timer.normal_drop();
+        timers.fall.normal_drop();
     }
 
     if state.matrix.is_on_surface(&current_piece, &pos) {
         // If we just landed on a surface, kick off the lock timer
-        if lock_timer.paused() {
+        if timers.lock.paused() {
             info!("Starting lock timer!");
-            fall_timer.pause();
-            lock_timer.reset();
-            lock_timer.unpause();
+            timers.fall.pause();
+            timers.lock.reset();
+            timers.lock.unpause();
         }
     } else {
         // If we were in lock phase but are free to fall, go back to "falling" phase
-        if !lock_timer.paused() {
-            lock_timer.pause();
-            fall_timer.normal_drop();
-            fall_timer.unpause();
+        if !timers.lock.paused() {
+            timers.lock.pause();
+            timers.fall.normal_drop();
+            timers.fall.unpause();
         }
     }
 }

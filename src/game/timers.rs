@@ -2,7 +2,20 @@ use std::time::Duration;
 
 use bevy::prelude::*;
 
-#[derive(Resource, Deref, DerefMut)]
+#[derive(Default, Resource)]
+pub struct Timers {
+    pub fall: FallTimer,
+    pub lock: LockTimer,
+}
+
+impl Timers {
+    pub fn tick(&mut self, delta: Duration) {
+        self.fall.tick(delta);
+        self.lock.tick(delta);
+    }
+}
+
+#[derive(Deref, DerefMut)]
 pub(super) struct FallTimer {
     #[deref]
     timer: Timer,
@@ -42,7 +55,7 @@ impl Default for FallTimer {
     }
 }
 
-#[derive(Resource, Deref, DerefMut)]
+#[derive(Deref, DerefMut)]
 pub(super) struct LockTimer(Timer);
 
 impl LockTimer {
