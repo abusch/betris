@@ -138,8 +138,8 @@ fn game_setup(
 ) {
     commands.init_resource::<Timers>();
 
-    commands.trigger(SpawnMatrix);
-    commands.trigger(SpawnNextZone);
+    commands.add(SpawnMatrix);
+    commands.add(SpawnNextZone);
 
     event_writer.send(ScoreEvent::LevelStart(1));
 
@@ -169,8 +169,8 @@ fn generate_piece(
 
     info!("Generating new tetrimino {:?}", tetrimino.kind);
 
-    commands.trigger_targets(SpawnPiece::current(tetrimino), state.matrix.root_entity);
-    commands.trigger_targets(SpawnPiece::next(next_piece), next_zone_entity);
+    commands.add(SpawnPiece::current(tetrimino).with_parent(state.matrix.root_entity));
+    commands.add(SpawnPiece::next(next_piece).with_parent(next_zone_entity));
 
     // TODO ghost piece
     next_phase.set(Phase::Falling);
@@ -195,6 +195,17 @@ fn first_drop(
 fn tick_timers(mut timers: ResMut<Timers>, time: Res<Time>) {
     timers.tick(time.delta());
 }
+
+// pub struct LeftRightHandler {}
+//
+// impl LeftRightHandler {
+//     pub fn new_direction(&mut self) {
+//         let left_just_pressed = true;
+//         let left_pressed = true;
+//         let right_just_pressed = true;
+//         let right_pressed = true;
+//     }
+// }
 
 fn handle_input(
     mut current_piece_query: Query<(&mut Tetrimino, &mut Positioned), With<CurrentPiece>>,
@@ -231,6 +242,12 @@ fn handle_input(
             *current_piece = rotated;
         }
     }
+    // if action_state.pressed(&Action::Left) {
+    //     if action_state.just_pressed(&Action::Left) {
+    //         // start auto-repeat delay timer
+    //     }
+    // }
+
     if action_state.just_pressed(&Action::Left) {
         let left_pos = pos.left();
         if current_piece.min_x(&left_pos) >= 0

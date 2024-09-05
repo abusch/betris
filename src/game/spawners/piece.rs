@@ -1,13 +1,39 @@
-use bevy::{prelude::*, sprite::Anchor};
+use bevy::{
+    ecs::{system::RunSystemOnce, world::Command},
+    prelude::*,
+    sprite::Anchor,
+};
 
 use crate::model::{Pos, Tetrimino};
 
-use super::{Positioned, SpawnPiece};
+use super::{Positioned, INITIAL_POS};
 
-pub fn spawn(trigger: Trigger<SpawnPiece>, mut commands: Commands) {
+#[derive(Debug)]
+pub struct SpawnPiece(pub Entity, pub Tetrimino, pub Pos, pub bool);
+
+impl SpawnPiece {
+    pub fn current(tetrimino: Tetrimino) -> Self {
+        Self(Entity::PLACEHOLDER, tetrimino, INITIAL_POS, true)
+    }
+
+    pub fn next(tetrimino: Tetrimino) -> Self {
+        Self(Entity::PLACEHOLDER, tetrimino, Pos::ZERO, false)
+    }
+
+    pub fn with_parent(self, parent: Entity) -> Self {
+        Self(parent, self.1, self.2, self.3)
+    }
+}
+
+impl Command for SpawnPiece {
+    fn apply(self, world: &mut World) {
+        world.run_system_once_with(self, spawn);
+    }
+}
+
+fn spawn(In(config): In<SpawnPiece>, mut commands: Commands) {
     info!("Spawning piece");
-    let parent = trigger.entity();
-    let SpawnPiece(piece, pos, is_current) = trigger.event();
+    let SpawnPiece(parent, piece, pos, is_current) = config;
 
     commands.entity(parent).with_children(|children| {
         let mut builder = children.spawn(PieceBundle {
@@ -15,10 +41,10 @@ pub fn spawn(trigger: Trigger<SpawnPiece>, mut commands: Commands) {
                 transform: Transform::from_xyz(pos.x as f32, pos.y as f32, 1.0),
                 ..default()
             },
-            piece: *piece,
-            pos: Positioned(*pos),
+            piece,
+            pos: Positioned(pos),
         });
-        if *is_current {
+        if is_current {
             builder.insert((Name::new("Current piece"), CurrentPiece));
         } else {
             builder.insert(Name::new("Next piece"));

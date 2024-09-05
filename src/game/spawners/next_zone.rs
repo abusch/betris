@@ -1,9 +1,20 @@
-use bevy::prelude::*;
+use bevy::{
+    ecs::{system::RunSystemOnce, world::Command},
+    prelude::*,
+};
 
-use super::SpawnNextZone;
 use crate::game::SCALE;
 
-pub fn spawn(_trigger: Trigger<SpawnNextZone>, mut commands: Commands) {
+#[derive(Debug)]
+pub struct SpawnNextZone;
+
+impl Command for SpawnNextZone {
+    fn apply(self, world: &mut World) {
+        world.run_system_once_with(self, spawn);
+    }
+}
+
+fn spawn(In(_): In<SpawnNextZone>, mut commands: Commands) {
     // Next-piece display zone
     commands.spawn((
         Name::new("Next tetrimino zone"),

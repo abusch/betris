@@ -1,10 +1,21 @@
-use bevy::{prelude::*, sprite::Anchor};
+use bevy::{
+    ecs::{system::RunSystemOnce, world::Command},
+    prelude::*,
+    sprite::Anchor,
+};
 
 use crate::game::{GameState, SCALE};
 
-use super::SpawnMatrix;
+#[derive(Debug)]
+pub struct SpawnMatrix;
 
-pub fn spawn(_trigger: Trigger<SpawnMatrix>, mut commands: Commands, mut state: ResMut<GameState>) {
+impl Command for SpawnMatrix {
+    fn apply(self, world: &mut World) {
+        world.run_system_once_with(self, spawn);
+    }
+}
+
+fn spawn(In(_): In<SpawnMatrix>, mut commands: Commands, mut state: ResMut<GameState>) {
     // Matrix i.e main game area
     state.matrix.root_entity = commands
         .spawn((
