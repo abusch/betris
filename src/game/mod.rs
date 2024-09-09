@@ -39,7 +39,7 @@ pub fn plugin(app: &mut App) {
         .init_resource::<GameState>()
         .register_type::<GameState>()
         .insert_resource(ClearColor(palettes::css::LIGHT_GRAY.into()))
-        .add_systems(OnEnter(Screen::Playing), game_setup)
+        .add_systems(OnEnter(Screen::Gameplay), game_setup)
         .add_systems(
             OnEnter(Phase::Generation),
             (clean_up_pieces, generate_piece).chain(),
@@ -56,7 +56,7 @@ pub fn plugin(app: &mut App) {
         .add_systems(OnEnter(Phase::Pattern), detect_patterns)
         .add_systems(OnEnter(Phase::Eliminate), eliminate)
         .add_systems(OnExit(Phase::Eliminate), update_blocks_transform)
-        .add_systems(OnExit(Screen::Playing), game_cleanup);
+        .add_systems(OnExit(Screen::Gameplay), game_cleanup);
 
     app.add_plugins((input::plugin, spawners::plugin, score::plugin, ui::plugin));
 

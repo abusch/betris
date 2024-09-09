@@ -5,7 +5,7 @@ use crate::screen::Screen;
 use super::score::Score;
 
 pub fn plugin(app: &mut App) {
-    app.add_systems(OnEnter(Screen::Playing), setup)
+    app.add_systems(OnEnter(Screen::Gameplay), setup)
         .add_systems(Update, update);
 }
 

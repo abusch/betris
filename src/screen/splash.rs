@@ -45,6 +45,6 @@ fn exit_splash(mut commands: Commands) {
 
 fn countdown(mut next: ResMut<NextState<Screen>>, time: Res<Time>, mut timer: ResMut<SplashTime>) {
     if timer.tick(time.delta()).finished() {
-        next.set(Screen::Playing);
+        next.set(Screen::Gameplay);
     }
 }

@@ -11,13 +11,13 @@ pub fn plugin(app: &mut App) {
         .add_systems(
             Update,
             setup
-                .run_if(in_state(Screen::Playing))
+                .run_if(in_state(Screen::Gameplay))
                 .in_set(AppSet::Update),
         )
         .add_systems(
             Update,
             (debug_grid)
-                .run_if(in_state(Screen::Playing))
+                .run_if(in_state(Screen::Gameplay))
                 .in_set(AppSet::Update),
         );
 }

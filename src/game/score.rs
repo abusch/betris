@@ -6,14 +6,14 @@ pub fn plugin(app: &mut App) {
     app.init_resource::<Score>()
         .register_type::<Score>()
         .add_event::<ScoreEvent>()
-        .add_systems(OnEnter(Screen::Playing), setup)
+        .add_systems(OnEnter(Screen::Gameplay), setup)
         .add_systems(
             Update,
             update
-                .run_if(in_state(Screen::Playing))
+                .run_if(in_state(Screen::Gameplay))
                 .in_set(AppSet::Update),
         )
-        .add_systems(OnExit(Screen::Playing), cleanup);
+        .add_systems(OnExit(Screen::Gameplay), cleanup);
 }
 
 #[derive(Default, Resource, Reflect)]
