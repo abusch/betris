@@ -9,8 +9,8 @@ use leafwing_input_manager::action_state::ActionState;
 use score::ScoreEvent;
 use spawners::{
     next_zone::NextTetriminoZone,
-    piece::{CurrentPiece, Mino},
-    Positioned, SpawnMatrix, SpawnNextZone, SpawnPiece,
+    piece::{CurrentPiece, GhostPiece, Mino},
+    Positioned, SpawnMatrix, SpawnNextZone, SpawnPiece, INITIAL_POS,
 };
 use timers::Timers;
 
@@ -48,7 +48,12 @@ pub fn plugin(app: &mut App) {
         .add_systems(OnEnter(Phase::Falling), start_fall_timer)
         .add_systems(
             Update,
-            (tick_timers, handle_input, update_piece_transform)
+            (
+                tick_timers,
+                handle_input,
+                update_ghost,
+                update_piece_transform,
+            )
                 .chain()
                 .run_if(in_state(Phase::Falling)),
         )
@@ -170,9 +175,11 @@ fn generate_piece(
     info!("Generating new tetrimino {:?}", tetrimino.kind);
 
     commands.add(SpawnPiece::current(tetrimino).with_parent(state.matrix.root_entity));
+    let ghost_pos = state.matrix.lowest_valid_pos(&tetrimino, &INITIAL_POS);
+    commands.add(SpawnPiece::ghost(tetrimino, ghost_pos).with_parent(state.matrix.root_entity));
+
     commands.add(SpawnPiece::next(next_piece).with_parent(next_zone_entity));
 
-    // TODO ghost piece
     next_phase.set(Phase::Falling);
 }
 
@@ -292,18 +299,29 @@ fn handle_input(
     }
 }
 
+fn update_ghost(
+    current: Query<(&Positioned, &Tetrimino), (With<CurrentPiece>, Without<GhostPiece>)>,
+    mut ghost: Query<(&mut Positioned, &mut Tetrimino), (With<GhostPiece>, Without<CurrentPiece>)>,
+    state: Res<GameState>,
+) {
+    let (current_pos, current_tetrimino) = current.single();
+    let (mut ghost_pos, mut ghost_tetrimino) = ghost.single_mut();
+    let new_pos = state
+        .matrix
+        .lowest_valid_pos(current_tetrimino, &current_pos.0);
+    *ghost_tetrimino = *current_tetrimino;
+    ghost_pos.0 = new_pos;
+}
+
 /// Update the piece's Transform based on its grid position.
 ///
 /// The piece's position (as tracked by `Pos`) is the position (in grid coordinates) of the "visual
 /// center" of the piece. The blocks that make up the piece will be positioned relative to that.
 fn update_piece_transform(
-    mut piece: Query<
-        (&mut Transform, Ref<Positioned>, Ref<Tetrimino>, &Children),
-        With<CurrentPiece>,
-    >,
-    mut blocks: Query<&mut Transform, (With<Mino>, Without<CurrentPiece>)>,
+    mut pieces: Query<(&mut Transform, Ref<Positioned>, Ref<Tetrimino>, &Children), Without<Mino>>,
+    mut blocks: Query<&mut Transform, With<Mino>>,
 ) {
-    if let Ok((mut transform, pos, piece, children)) = piece.get_single_mut() {
+    for (mut transform, pos, piece, children) in pieces.iter_mut() {
         // If the position of the piece has changed, update its transform
         if pos.is_changed() {
             info!("Updating current piece transform");

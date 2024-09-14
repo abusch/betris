@@ -8,16 +8,32 @@ use crate::model::{Pos, Tetrimino};
 
 use super::{Positioned, INITIAL_POS};
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PieceType {
+    Current,
+    Ghost,
+    Next,
+}
+
 #[derive(Debug)]
-pub struct SpawnPiece(pub Entity, pub Tetrimino, pub Pos, pub bool);
+pub struct SpawnPiece(pub Entity, pub Tetrimino, pub Pos, pub PieceType);
 
 impl SpawnPiece {
     pub fn current(tetrimino: Tetrimino) -> Self {
-        Self(Entity::PLACEHOLDER, tetrimino, INITIAL_POS, true)
+        Self(
+            Entity::PLACEHOLDER,
+            tetrimino,
+            INITIAL_POS,
+            PieceType::Current,
+        )
+    }
+
+    pub fn ghost(tetrimino: Tetrimino, pos: Pos) -> Self {
+        Self(Entity::PLACEHOLDER, tetrimino, pos, PieceType::Ghost)
     }
 
     pub fn next(tetrimino: Tetrimino) -> Self {
-        Self(Entity::PLACEHOLDER, tetrimino, Pos::ZERO, false)
+        Self(Entity::PLACEHOLDER, tetrimino, Pos::ZERO, PieceType::Next)
     }
 
     pub fn with_parent(self, parent: Entity) -> Self {
@@ -33,7 +49,7 @@ impl Command for SpawnPiece {
 
 fn spawn(In(config): In<SpawnPiece>, mut commands: Commands) {
     info!("Spawning piece");
-    let SpawnPiece(parent, piece, pos, is_current) = config;
+    let SpawnPiece(parent, piece, pos, piece_type) = config;
 
     commands.entity(parent).with_children(|children| {
         let mut builder = children.spawn(PieceBundle {
@@ -44,10 +60,16 @@ fn spawn(In(config): In<SpawnPiece>, mut commands: Commands) {
             piece,
             pos: Positioned(pos),
         });
-        if is_current {
-            builder.insert((Name::new("Current piece"), CurrentPiece));
-        } else {
-            builder.insert(Name::new("Next piece"));
+        match piece_type {
+            PieceType::Current => {
+                builder.insert((Name::new("Current piece"), CurrentPiece));
+            }
+            PieceType::Ghost => {
+                builder.insert((Name::new("Ghost piece"), GhostPiece));
+            }
+            PieceType::Next => {
+                builder.insert(Name::new("Next piece"));
+            }
         }
         builder.with_children(|children| {
             for p in piece.block_positions(&Pos::ZERO) {
@@ -67,6 +89,10 @@ pub struct PieceBundle {
 /// Marker component for the current piece (i.e. the piece controlled by the player)
 #[derive(Component)]
 pub struct CurrentPiece;
+
+/// Marker component for the ghost piece
+#[derive(Component)]
+pub struct GhostPiece;
 
 /// A mino (i.e block) which is part of a piece
 #[derive(Component)]

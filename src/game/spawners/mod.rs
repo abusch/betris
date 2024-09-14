@@ -10,7 +10,7 @@ pub use matrix::SpawnMatrix;
 pub use next_zone::SpawnNextZone;
 pub use piece::SpawnPiece;
 
-const INITIAL_POS: Pos = Pos::new(5, 21);
+pub const INITIAL_POS: Pos = Pos::new(5, 21);
 
 pub fn plugin(_app: &mut App) {
     // nothing yet
