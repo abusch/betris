@@ -71,9 +71,14 @@ fn spawn(In(config): In<SpawnPiece>, mut commands: Commands) {
                 builder.insert(Name::new("Next piece"));
             }
         }
+        let alpha = if piece_type == PieceType::Ghost {
+            0.5
+        } else {
+            1.0
+        };
         builder.with_children(|children| {
             for p in piece.block_positions(&Pos::ZERO) {
-                children.spawn(MinoBundle::new(p, piece.kind.color()));
+                children.spawn(MinoBundle::new(p, piece.kind.color().with_alpha(alpha)));
             }
         });
     });
