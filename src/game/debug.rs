@@ -1,3 +1,4 @@
+use bevy::input::common_conditions::input_toggle_active;
 use bevy::prelude::*;
 use bevy::{color::palettes, ecs::system::lifetimeless::SRes};
 use iyes_perf_ui::{entry::PerfUiEntry, prelude::PerfUiRoot, PerfUiAppExt};
@@ -17,7 +18,9 @@ pub fn plugin(app: &mut App) {
         .add_systems(
             Update,
             (debug_grid)
-                .run_if(in_state(Screen::Gameplay))
+                .run_if(
+                    in_state(Screen::Gameplay).and_then(input_toggle_active(false, KeyCode::KeyG)),
+                )
                 .in_set(AppSet::Update),
         );
 }
@@ -36,7 +39,7 @@ fn debug_grid(mut gizmos: Gizmos) {
             0.0,
             UVec2::new(10, 22),
             Vec2::new(SCALE, SCALE),
-            palettes::css::HOT_PINK,
+            palettes::css::HOT_PINK.with_alpha(0.5),
         )
         .outer_edges();
 }
