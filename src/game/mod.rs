@@ -38,7 +38,7 @@ pub fn plugin(app: &mut App) {
     app.init_state::<Phase>()
         .init_resource::<GameState>()
         .register_type::<GameState>()
-        .insert_resource(ClearColor(palettes::css::LIGHT_GRAY.into()))
+        .insert_resource(ClearColor(palettes::css::BLACK.into()))
         .add_systems(OnEnter(Screen::Gameplay), game_setup)
         .add_systems(
             OnEnter(Phase::Generation),

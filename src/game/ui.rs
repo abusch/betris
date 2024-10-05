@@ -13,7 +13,7 @@ fn setup(mut commands: Commands, assets: Res<AssetServer>) {
     let text_style = TextStyle {
         font: assets.load("fonts/BungeeSpice-Regular.ttf"),
         font_size: 40.0,
-        color: Color::BLACK,
+        color: Color::WHITE,
     };
 
     commands.spawn((
