@@ -12,7 +12,7 @@ const DARK_BLUE: Srgba = palettes::css::MIDNIGHT_BLUE;
 const GREEN: Srgba = palettes::css::GREEN;
 const RED: Srgba = palettes::css::RED;
 
-#[derive(Component, Debug, Clone, Copy)]
+#[derive(Component, Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Tetrimino {
     pub kind: TetriminoKind,
     pub facing: Facing,

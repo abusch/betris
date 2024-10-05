@@ -309,8 +309,12 @@ fn update_ghost(
     let new_pos = state
         .matrix
         .lowest_valid_pos(current_tetrimino, &current_pos.0);
-    *ghost_tetrimino = *current_tetrimino;
-    ghost_pos.0 = new_pos;
+    if ghost_tetrimino.as_ref() != current_tetrimino {
+        *ghost_tetrimino = *current_tetrimino;
+    }
+    if ghost_pos.0 != new_pos {
+        ghost_pos.0 = new_pos;
+    }
 }
 
 /// Update the piece's Transform based on its grid position.
@@ -429,7 +433,6 @@ fn eliminate(
 fn update_blocks_transform(mut blocks: Query<(&mut Transform, &Positioned), With<Block>>) {
     for (mut transform, pos) in blocks.iter_mut() {
         // If the position of the block has changed, update its transform
-        info!("Updating transform for block at pos {}", **pos);
         transform.translation.x = pos.x as f32;
         transform.translation.y = pos.y as f32;
     }
