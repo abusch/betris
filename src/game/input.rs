@@ -1,10 +1,16 @@
 use bevy::prelude::*;
-use leafwing_input_manager::{plugin::InputManagerPlugin, prelude::*, Actionlike};
+use leafwing_input_manager::{
+    common_conditions::action_just_pressed, plugin::InputManagerPlugin, prelude::*, Actionlike,
+};
 
 pub fn plugin(app: &mut App) {
     app.add_plugins(InputManagerPlugin::<Action>::default())
         .init_resource::<ActionState<Action>>()
-        .insert_resource(Action::make_input_map());
+        .insert_resource(Action::make_input_map())
+        .add_systems(
+            Update,
+            toggle_pause.run_if(action_just_pressed(Action::Pause)),
+        );
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Actionlike, Reflect)]
@@ -15,6 +21,7 @@ pub enum Action {
     RotateRight,
     SoftDrop,
     HardDrop,
+    Pause,
 }
 
 impl Action {
@@ -27,6 +34,15 @@ impl Action {
             (Action::RotateRight, KeyCode::KeyX),
             (Action::SoftDrop, KeyCode::ArrowDown),
             (Action::HardDrop, KeyCode::Space),
+            (Action::Pause, KeyCode::KeyP),
         ])
+    }
+}
+
+fn toggle_pause(mut time: ResMut<Time<Virtual>>) {
+    if time.is_paused() {
+        time.unpause();
+    } else {
+        time.pause();
     }
 }
