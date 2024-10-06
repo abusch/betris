@@ -1,8 +1,19 @@
+use std::time::Duration;
+
 use bevy::{
-    color::palettes::{self},
+    color::palettes::{
+        self,
+        css::{BLACK, WHITE},
+    },
     ecs::component::StorageType,
     prelude::*,
     sprite::Anchor,
+};
+use bevy_tween::{
+    bevy_time_runner::TimeRunnerEnded,
+    interpolate::{sprite_color, sprite_color_to},
+    prelude::{AnimationBuilderExt, EaseFunction},
+    tween::TargetComponent,
 };
 use input::Action;
 use leafwing_input_manager::action_state::ActionState;
@@ -59,6 +70,8 @@ pub fn plugin(app: &mut App) {
         )
         .add_systems(OnEnter(Phase::Lock), handle_lock)
         .add_systems(OnEnter(Phase::Pattern), detect_patterns)
+        .add_systems(OnEnter(Phase::Animate), animate)
+        .add_systems(Update, animate_done.run_if(in_state(Phase::Animate)))
         .add_systems(OnEnter(Phase::Eliminate), eliminate)
         .add_systems(OnExit(Phase::Eliminate), update_blocks_transform)
         .add_systems(OnExit(Screen::Gameplay), game_cleanup);
@@ -372,11 +385,44 @@ fn detect_patterns(
     state: ResMut<GameState>,
     mut next_phase: ResMut<NextState<Phase>>,
 ) {
+    let mut has_deletions = false;
     for e in state.matrix.entities_to_delete() {
         info!("Marking block {e} for deletion");
         commands.entity(e).insert(ToDelete);
+        has_deletions = true;
     }
-    next_phase.set(Phase::Eliminate);
+
+    if has_deletions {
+        next_phase.set(Phase::Animate);
+    } else {
+        // if there is nothing to delete, go straight back to the Generation phase
+        next_phase.set(Phase::Generation);
+    }
+}
+
+#[derive(Component)]
+pub struct Animator;
+
+fn animate(mut commands: Commands, to_delete: Query<Entity, With<ToDelete>>) {
+    info!("Start animation");
+    let entities = TargetComponent::from_iter(to_delete.iter());
+
+    commands.spawn(Animator).animation().insert_tween_here(
+        Duration::from_secs_f32(1.0),
+        EaseFunction::QuadraticOut,
+        entities
+            .state(WHITE.with_alpha(1.0).into())
+            .with(sprite_color_to(WHITE.with_alpha(0.0).into())),
+    );
+}
+
+fn animate_done(mut next_phase: ResMut<NextState<Phase>>, mut ended: EventReader<TimeRunnerEnded>) {
+    for ended in ended.read() {
+        if ended.is_completed() {
+            info!("Animation completed! Moving to Eliminate phase");
+            next_phase.set(Phase::Eliminate);
+        }
+    }
 }
 
 fn eliminate(

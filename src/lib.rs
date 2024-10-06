@@ -2,6 +2,7 @@ use bevy::{
     core_pipeline::{bloom::BloomSettings, tonemapping::Tonemapping},
     prelude::*,
 };
+use bevy_tween::DefaultTweenPlugins;
 
 #[cfg(feature = "dev")]
 mod dev_tools;
@@ -19,7 +20,7 @@ impl Plugin for AppPlugin {
             (AppSet::TickTimers, AppSet::RecordInput, AppSet::Update).chain(),
         );
 
-        app.add_plugins(DefaultPlugins)
+        app.add_plugins((DefaultPlugins, DefaultTweenPlugins))
             .insert_resource(ClearColor(Color::BLACK))
             .add_systems(Startup, setup)
             .add_plugins((game::plugin, screen::plugin));

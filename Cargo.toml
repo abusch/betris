@@ -2,6 +2,7 @@
 name = "betris"
 version = "0.1.0"
 edition = "2021"
+authors = ["Antoine Busch <antoine.busch@gmail.com"]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 [features]
@@ -26,12 +27,17 @@ dev_native = [
 
 [dependencies]
 bevy = { version = "0.14.0", features = ["dynamic_linking"] }
-bevy-inspector-egui = { version = "0.25.2", optional = true }
+bevy-inspector-egui = { version = "0.26.0", optional = true }
 leafwing-input-manager = "0.15"
 num_enum = "0.7"
 rand = "0.8"
 strum = { version = "0.26", features = ["derive"] }
 iyes_perf_ui = { version = "0.3", optional = true }
+bevy_tween = { version = "0.6.0", default-features = false, features = [
+  "bevy_render",
+  "bevy_sprite",
+  "bevy_asset",
+] }
 
 # Idiomatic Bevy code often triggers these lints, and the CI workflow treats them as errors.
 # In some cases they may still signal poor code quality however, so consider commenting out these lines.
