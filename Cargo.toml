@@ -1,8 +1,12 @@
 [package]
 name = "betris"
+description = "A Tetris-clone written with Bevy"
 version = "0.1.0"
 edition = "2021"
 authors = ["Antoine Busch <antoine.busch@gmail.com"]
+license = "MIT OR Apache-2.0"
+readme = "README.md"
+repository = "https://github.com/abusch/betris"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 [features]
