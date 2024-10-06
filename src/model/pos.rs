@@ -1,5 +1,7 @@
 use std::{fmt::Display, ops::Add};
 
+use bevy::prelude::Transform;
+
 use crate::game::MATRIX_WIDTH;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -70,5 +72,20 @@ impl Add<Pos> for Pos {
 
     fn add(self, rhs: Pos) -> Self::Output {
         Pos::new(self.x + rhs.x, self.y + rhs.y)
+    }
+}
+
+impl From<&Pos> for Transform {
+    fn from(value: &Pos) -> Self {
+        // Blocks have their anchor set to "center", so a block of size 1 at matrix coordinates
+        // (x,y) will have its center at position (x + 0.5, y + 0.5)
+        // Transform::from_xyz(value.x as f32 + 0.5, value.y as f32 + 0.5, 1.0)
+        Transform::from_xyz(value.x as f32, value.y as f32, 1.0)
+    }
+}
+
+impl From<Pos> for Transform {
+    fn from(value: Pos) -> Self {
+        (&value).into()
     }
 }

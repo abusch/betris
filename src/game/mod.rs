@@ -1,17 +1,14 @@
 use std::time::Duration;
 
 use bevy::{
-    color::palettes::{
-        self,
-        css::{BLACK, WHITE},
-    },
+    color::palettes::{self, css::WHITE},
     ecs::component::StorageType,
     prelude::*,
     sprite::Anchor,
 };
 use bevy_tween::{
     bevy_time_runner::TimeRunnerEnded,
-    interpolate::{sprite_color, sprite_color_to},
+    interpolate::sprite_color_to,
     prelude::{AnimationBuilderExt, EaseFunction},
     tween::TargetComponent,
 };
@@ -136,11 +133,11 @@ impl BlockBundle {
             sprite: SpriteBundle {
                 sprite: Sprite {
                     custom_size: Some(Vec2::splat(1.0)),
-                    anchor: Anchor::Center,
+                    anchor: Anchor::BottomLeft,
                     color: palettes::css::GRAY.into(),
                     ..default()
                 },
-                transform: Transform::from_xyz(pos.x as f32, pos.y as f32, 1.0),
+                transform: pos.into(),
                 ..default()
             },
             pos: Positioned(pos),
@@ -342,15 +339,13 @@ fn update_piece_transform(
         // If the position of the piece has changed, update its transform
         if pos.is_changed() {
             info!("Updating current piece transform");
-            transform.translation.x = pos.x as f32;
-            transform.translation.y = pos.y as f32;
+            *transform = pos.0.into();
         }
         if piece.is_changed() {
             info!("Updating current piece's blocks transform");
             for (child, offset) in children.iter().zip(piece.block_offsets()) {
                 if let Ok(mut transform) = blocks.get_mut(*child) {
-                    transform.translation.x = offset.x as f32;
-                    transform.translation.y = offset.y as f32;
+                    *transform = offset.into();
                 }
             }
         }
@@ -479,7 +474,6 @@ fn eliminate(
 fn update_blocks_transform(mut blocks: Query<(&mut Transform, &Positioned), With<Block>>) {
     for (mut transform, pos) in blocks.iter_mut() {
         // If the position of the block has changed, update its transform
-        transform.translation.x = pos.x as f32;
-        transform.translation.y = pos.y as f32;
+        *transform = pos.0.into();
     }
 }

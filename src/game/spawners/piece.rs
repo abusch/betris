@@ -72,7 +72,7 @@ fn spawn(In(config): In<SpawnPiece>, mut commands: Commands) {
             }
         }
         let alpha = if piece_type == PieceType::Ghost {
-            0.5
+            0.2
         } else {
             1.0
         };
@@ -115,11 +115,11 @@ impl MinoBundle {
             sprite: SpriteBundle {
                 sprite: Sprite {
                     custom_size: Some(Vec2::splat(1.0)),
-                    anchor: Anchor::Center,
+                    anchor: Anchor::BottomLeft,
                     color,
                     ..default()
                 },
-                transform: Transform::from_xyz(pos.x as f32, pos.y as f32, 1.0),
+                transform: pos.into(),
                 ..default()
             },
             mino: Mino,

@@ -35,7 +35,7 @@ fn setup(mut commands: Commands, root: Query<Entity, Added<PerfUiRoot>>) {
 fn debug_grid(mut gizmos: Gizmos) {
     gizmos
         .grid_2d(
-            Vec2::new(-5.5 * SCALE, 0.5 * SCALE),
+            Vec2::new(-5.0 * SCALE, 0.0),
             0.0,
             UVec2::new(10, 22),
             Vec2::new(SCALE, SCALE),
