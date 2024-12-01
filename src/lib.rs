@@ -2,13 +2,14 @@ use bevy::{
     core_pipeline::{bloom::BloomSettings, tonemapping::Tonemapping},
     prelude::*,
 };
-use bevy_tween::DefaultTweenPlugins;
+use bevy_vector_shapes::Shape2dPlugin;
 
 #[cfg(feature = "dev")]
 mod dev_tools;
 mod game;
 mod model;
 mod screen;
+mod tweening;
 
 pub struct AppPlugin;
 
@@ -20,10 +21,11 @@ impl Plugin for AppPlugin {
             (AppSet::TickTimers, AppSet::RecordInput, AppSet::Update).chain(),
         );
 
-        app.add_plugins((DefaultPlugins, DefaultTweenPlugins))
+        app.add_plugins((DefaultPlugins, Shape2dPlugin::default()))
             .insert_resource(ClearColor(Color::BLACK))
-            .add_systems(Startup, setup)
-            .add_plugins((game::plugin, screen::plugin));
+            .add_systems(Startup, setup);
+
+        app.add_plugins((game::plugin, screen::plugin, tweening::plugin));
 
         // TODO: disable in release mode
         #[cfg(feature = "dev")]

@@ -1,7 +1,14 @@
 use bevy::{
-    ecs::{system::RunSystemOnce, world::Command},
+    color::palettes::basic::AQUA,
+    ecs::{
+        system::{EntityCommand, RunSystemOnce},
+        world::Command,
+    },
     prelude::*,
-    sprite::Anchor,
+};
+use bevy_vector_shapes::{
+    prelude::{BuildShapeChildren, ShapeConfig},
+    shapes::{RectangleSpawner, ThicknessType},
 };
 
 use crate::model::{Pos, Tetrimino};
@@ -51,6 +58,7 @@ fn spawn(In(config): In<SpawnPiece>, mut commands: Commands) {
     info!("Spawning piece");
     let SpawnPiece(parent, piece, pos, piece_type) = config;
 
+    // Spawn a PieceBundle as a child of the given parent entity
     commands.entity(parent).with_children(|children| {
         let mut builder = children.spawn(PieceBundle {
             spatial: SpatialBundle {
@@ -71,14 +79,12 @@ fn spawn(In(config): In<SpawnPiece>, mut commands: Commands) {
                 builder.insert(Name::new("Next piece"));
             }
         }
-        let alpha = if piece_type == PieceType::Ghost {
-            0.2
-        } else {
-            1.0
-        };
-        builder.with_children(|children| {
-            for p in piece.block_positions(&Pos::ZERO) {
-                children.spawn(MinoBundle::new(p, piece.kind.color().with_alpha(alpha)));
+
+        let color = (piece_type != PieceType::Ghost).then_some(piece.kind.color());
+        // Spawn Mino entities as children of the new PieceBundle entity
+        builder.with_children(|c| {
+            for p in piece.block_offsets() {
+                c.spawn_empty().add(SpawnMino(*p, color));
             }
         });
     });
@@ -103,26 +109,48 @@ pub struct GhostPiece;
 #[derive(Component)]
 pub struct Mino;
 
-#[derive(Bundle)]
-pub struct MinoBundle {
-    sprite: SpriteBundle,
-    mino: Mino,
+/// Command to add the necessary components to draw a _Mino_ to the given entity.
+pub struct SpawnMino(pub Pos, pub Option<Color>);
+
+impl EntityCommand for SpawnMino {
+    fn apply(self, entity: Entity, world: &mut World) {
+        world.run_system_once_with((entity, self), spawn_mino)
+    }
 }
 
-impl MinoBundle {
-    pub fn new(pos: Pos, color: Color) -> Self {
-        Self {
-            sprite: SpriteBundle {
-                sprite: Sprite {
-                    custom_size: Some(Vec2::splat(1.0)),
-                    anchor: Anchor::BottomLeft,
-                    color,
-                    ..default()
-                },
-                transform: pos.into(),
-                ..default()
-            },
-            mino: Mino,
+fn spawn_mino(In((entity, config)): In<(Entity, SpawnMino)>, mut commands: Commands) {
+    let SpawnMino(pos, color) = config;
+
+    let shape_config = if let Some(color) = color {
+        ShapeConfig {
+            color,
+            corner_radii: Vec4::splat(0.1),
+            ..ShapeConfig::default_2d()
         }
-    }
+    } else {
+        ShapeConfig {
+            color: AQUA.into(),
+            corner_radii: Vec4::splat(0.1),
+            hollow: true,
+            thickness: 1.0 / 20.0,
+            thickness_type: ThicknessType::Pixels,
+            ..ShapeConfig::default_2d()
+        }
+    };
+
+    commands
+        .entity(entity)
+        .insert((Mino, SpatialBundle::from_transform(pos.into())))
+        .with_shape_children(&shape_config, |shapes| {
+            shapes.translate(Vec3::new(0.5, 0.5, 0.0));
+            // block
+            shapes.rect(Vec2::splat(0.9));
+            // outline
+            shapes.origin = Some(Vec3::Z * 0.1);
+            shapes.hollow = true;
+            shapes.thickness = 1.0 / 20.0;
+            shapes.thickness_type = ThicknessType::Pixels;
+            shapes.color = shapes.color.darker(0.5);
+            shapes.rect(Vec2::splat(0.9));
+        });
 }

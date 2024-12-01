@@ -1,32 +1,32 @@
 use std::time::Duration;
 
 use bevy::{
-    color::palettes::{self, css::WHITE},
+    color::palettes::css::{BLACK, GRAY, WHITE},
     ecs::component::StorageType,
     prelude::*,
-    sprite::Anchor,
+    reflect::List,
 };
 use bevy_tween::{
     bevy_time_runner::TimeRunnerEnded,
-    interpolate::sprite_color_to,
     prelude::{AnimationBuilderExt, EaseFunction},
     tween::TargetComponent,
 };
+use bevy_vector_shapes::shapes::ShapeFill;
 use input::Action;
 use leafwing_input_manager::action_state::ActionState;
 use score::ScoreEvent;
 use spawners::{
     next_zone::NextTetriminoZone,
-    piece::{CurrentPiece, GhostPiece, Mino},
+    piece::{CurrentPiece, GhostPiece, Mino, SpawnMino},
     Positioned, SpawnMatrix, SpawnNextZone, SpawnPiece, INITIAL_POS,
 };
 use timers::Timers;
 
 use self::matrix::Matrix;
 use crate::{
-    model::Pos,
     model::{Bag, Tetrimino},
     screen::Screen,
+    tweening::shape_color_to,
 };
 
 #[cfg(feature = "dev")]
@@ -46,7 +46,7 @@ pub fn plugin(app: &mut App) {
     app.init_state::<Phase>()
         .init_resource::<GameState>()
         .register_type::<GameState>()
-        .insert_resource(ClearColor(palettes::css::BLACK.into()))
+        .insert_resource(ClearColor(BLACK.into()))
         .add_systems(OnEnter(Screen::Gameplay), game_setup)
         .add_systems(
             OnEnter(Phase::Generation),
@@ -120,31 +120,43 @@ impl Component for Block {
     const STORAGE_TYPE: StorageType = StorageType::Table;
 }
 
-#[derive(Bundle)]
-pub struct BlockBundle {
-    sprite: SpriteBundle,
-    block: Block,
-    pos: Positioned,
-}
-
-impl BlockBundle {
-    pub fn new(pos: Pos) -> Self {
-        Self {
-            sprite: SpriteBundle {
-                sprite: Sprite {
-                    custom_size: Some(Vec2::splat(1.0)),
-                    anchor: Anchor::BottomLeft,
-                    color: palettes::css::GRAY.into(),
-                    ..default()
-                },
-                transform: pos.into(),
-                ..default()
-            },
-            pos: Positioned(pos),
-            block: Block,
-        }
-    }
-}
+// #[derive(Bundle)]
+// pub struct BlockBundle {
+//     // sprite: SpriteBundle,
+//     shape: ShapeBundle<RectangleComponent>,
+//     block: Block,
+//     pos: Positioned,
+// }
+//
+// impl BlockBundle {
+//     pub fn new(pos: Pos) -> Self {
+//         let mut transform: Transform = pos.into();
+//         transform.translation += Vec3::new(0.5, 0.5, 0.0);
+//         Self {
+//             shape: ShapeBundle::rect(
+//                 &ShapeConfig {
+//                     transform,
+//                     color: GRAY.into(),
+//                     corner_radii: Vec4::splat(0.1),
+//                     ..ShapeConfig::default_2d()
+//                 },
+//                 Vec2::splat(1.0),
+//             ),
+//             // sprite: SpriteBundle {
+//             //     sprite: Sprite {
+//             //         custom_size: Some(Vec2::splat(1.0)),
+//             //         anchor: Anchor::BottomLeft,
+//             //         color: palettes::css::GRAY.into(),
+//             //         ..default()
+//             //     },
+//             //     transform: pos.into(),
+//             //     ..default()
+//             // },
+//             pos: Positioned(pos),
+//             block: Block,
+//         }
+//     }
+// }
 
 fn game_setup(
     mut commands: Commands,
@@ -360,13 +372,34 @@ fn handle_lock(
 ) {
     if let Ok((piece_pos, piece)) = current_piece.get_single() {
         info!("Locking piece");
+
         commands
             .entity(state.matrix.root_entity)
             .with_children(|children| {
                 for block_pos in piece.block_positions(piece_pos) {
-                    children.spawn(BlockBundle::new(block_pos));
+                    // children.spawn(BlockBundle::new(block_pos));
+                    children
+                        .spawn((Block, Positioned(block_pos)))
+                        .add(SpawnMino(block_pos, Some(GRAY.into())));
                 }
             });
+        // for block_pos in piece.block_positions(piece_pos) {
+        //     // children.spawn(BlockBundle::new(block_pos));
+        //     commands.add(SpawnMino(
+        //         state.matrix.root_entity,
+        //         block_pos,
+        //         Some(GRAY.into()),
+        //     ));
+        // }
+
+        // commands
+        //     .entity(state.matrix.root_entity)
+        //     .with_children(|children| {
+        //         for block_pos in piece.block_positions(piece_pos) {
+        //             // children.spawn(BlockBundle::new(block_pos));
+        //             children.spawn(BlockBundle::new(block_pos));
+        //         }
+        //     });
     }
 
     next_phase.set(Phase::Pattern);
@@ -398,16 +431,31 @@ fn detect_patterns(
 #[derive(Component)]
 pub struct Animator;
 
-fn animate(mut commands: Commands, to_delete: Query<Entity, With<ToDelete>>) {
+fn animate(
+    mut commands: Commands,
+    to_delete: Query<(Entity, &Children), With<ToDelete>>,
+    to_animate: Query<Entity, With<ShapeFill>>,
+) {
     info!("Start animation");
-    let entities = TargetComponent::from_iter(to_delete.iter());
+    let mut target = Vec::new();
+    for (_, children) in to_delete.iter() {
+        for child in children {
+            if let Ok(z) = to_animate.get(*child) {
+                target.push(z);
+            }
+        }
+    }
+    if target.is_empty() {
+        warn!("No ShapeFill found!");
+    }
+    let entities = TargetComponent::from(target);
 
     commands.spawn(Animator).animation().insert_tween_here(
-        Duration::from_secs_f32(1.0),
+        Duration::from_secs_f32(0.3),
         EaseFunction::QuadraticOut,
         entities
             .state(WHITE.with_alpha(1.0).into())
-            .with(sprite_color_to(WHITE.with_alpha(0.0).into())),
+            .with(shape_color_to(Color::srgb(5.0, 5.0, 5.0))),
     );
 }
 

@@ -42,6 +42,7 @@ bevy_tween = { version = "0.6.0", default-features = false, features = [
   "bevy_sprite",
   "bevy_asset",
 ] }
+bevy_vector_shapes = "0.8.2"
 
 # Idiomatic Bevy code often triggers these lints, and the CI workflow treats them as errors.
 # In some cases they may still signal poor code quality however, so consider commenting out these lines.
