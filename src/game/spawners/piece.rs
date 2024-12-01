@@ -50,7 +50,9 @@ impl SpawnPiece {
 
 impl Command for SpawnPiece {
     fn apply(self, world: &mut World) {
-        world.run_system_once_with(self, spawn);
+        world
+            .run_system_once_with(self, spawn)
+            .expect("Failed to spawn Piece");
     }
 }
 
@@ -60,14 +62,12 @@ fn spawn(In(config): In<SpawnPiece>, mut commands: Commands) {
 
     // Spawn a PieceBundle as a child of the given parent entity
     commands.entity(parent).with_children(|children| {
-        let mut builder = children.spawn(PieceBundle {
-            spatial: SpatialBundle {
-                transform: Transform::from_xyz(pos.x as f32, pos.y as f32, 1.0),
-                ..default()
-            },
+        let mut builder = children.spawn((
+            Piece,
+            Transform::from_xyz(pos.x as f32, pos.y as f32, 1.0),
             piece,
-            pos: Positioned(pos),
-        });
+            Positioned(pos),
+        ));
         match piece_type {
             PieceType::Current => {
                 builder.insert((Name::new("Current piece"), CurrentPiece));
@@ -84,18 +84,22 @@ fn spawn(In(config): In<SpawnPiece>, mut commands: Commands) {
         // Spawn Mino entities as children of the new PieceBundle entity
         builder.with_children(|c| {
             for p in piece.block_offsets() {
-                c.spawn_empty().add(SpawnMino(*p, color));
+                c.spawn_empty().queue(SpawnMino(*p, color));
             }
         });
     });
 }
 
-#[derive(Bundle)]
-pub struct PieceBundle {
-    spatial: SpatialBundle,
-    piece: Tetrimino,
-    pos: Positioned,
-}
+#[derive(Component)]
+#[require(Tetrimino, Positioned, Transform, Visibility)]
+pub struct Piece;
+
+// #[derive(Bundle)]
+// pub struct PieceBundle {
+//     spatial: SpatialBundle,
+//     piece: Tetrimino,
+//     pos: Positioned,
+// }
 
 /// Marker component for the current piece (i.e. the piece controlled by the player)
 #[derive(Component)]
@@ -114,7 +118,9 @@ pub struct SpawnMino(pub Pos, pub Option<Color>);
 
 impl EntityCommand for SpawnMino {
     fn apply(self, entity: Entity, world: &mut World) {
-        world.run_system_once_with((entity, self), spawn_mino)
+        world
+            .run_system_once_with((entity, self), spawn_mino)
+            .unwrap()
     }
 }
 
@@ -140,7 +146,7 @@ fn spawn_mino(In((entity, config)): In<(Entity, SpawnMino)>, mut commands: Comma
 
     commands
         .entity(entity)
-        .insert((Mino, SpatialBundle::from_transform(pos.into())))
+        .insert((Mino, Transform::from(pos)))
         .with_shape_children(&shape_config, |shapes| {
             shapes.translate(Vec3::new(0.5, 0.5, 0.0));
             // block

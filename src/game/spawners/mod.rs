@@ -16,5 +16,5 @@ pub fn plugin(_app: &mut App) {
     // nothing yet
 }
 
-#[derive(Copy, Clone, Component, Deref, DerefMut)]
+#[derive(Copy, Default, Clone, Component, Deref, DerefMut)]
 pub struct Positioned(pub(crate) Pos);

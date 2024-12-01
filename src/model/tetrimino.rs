@@ -12,7 +12,7 @@ const DARK_BLUE: Srgba = palettes::css::MIDNIGHT_BLUE;
 const GREEN: Srgba = palettes::css::GREEN;
 const RED: Srgba = palettes::css::RED;
 
-#[derive(Component, Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Component, Default, Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Tetrimino {
     pub kind: TetriminoKind,
     pub facing: Facing,
@@ -85,9 +85,10 @@ impl From<TetriminoKind> for Tetrimino {
     }
 }
 
-#[derive(Debug, Copy, Clone, PartialEq, Eq, TryFromPrimitive, Reflect)]
+#[derive(Debug, Default, Copy, Clone, PartialEq, Eq, TryFromPrimitive, Reflect)]
 #[repr(u8)]
 pub enum TetriminoKind {
+    #[default]
     O = 0,
     I,
     T,
@@ -123,9 +124,10 @@ impl TetriminoKind {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Component)]
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Component)]
 #[repr(u8)]
 pub enum Facing {
+    #[default]
     North = 0,
     East = 1,
     South = 2,

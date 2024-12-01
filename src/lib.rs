@@ -1,5 +1,5 @@
 use bevy::{
-    core_pipeline::{bloom::BloomSettings, tonemapping::Tonemapping},
+    core_pipeline::{bloom::Bloom, tonemapping::Tonemapping},
     prelude::*,
 };
 use bevy_vector_shapes::Shape2dPlugin;
@@ -48,14 +48,12 @@ enum AppSet {
 
 fn setup(mut commands: Commands) {
     commands.spawn((
-        Camera2dBundle {
-            camera: Camera {
-                hdr: true,
-                ..default()
-            },
-            tonemapping: Tonemapping::TonyMcMapface,
+        Camera2d,
+        Camera {
+            hdr: true,
             ..default()
         },
-        BloomSettings::NATURAL,
+        Tonemapping::TonyMcMapface,
+        Bloom::NATURAL,
     ));
 }

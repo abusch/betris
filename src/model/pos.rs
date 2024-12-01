@@ -4,7 +4,7 @@ use bevy::prelude::Transform;
 
 use crate::game::MATRIX_WIDTH;
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Default, Copy, Debug, PartialEq, Eq)]
 pub struct Pos {
     pub x: i8,
     pub y: i8,

@@ -4,11 +4,10 @@ use bevy::{
     color::palettes::css::{BLACK, GRAY, WHITE},
     ecs::component::StorageType,
     prelude::*,
-    reflect::List,
 };
 use bevy_tween::{
     bevy_time_runner::TimeRunnerEnded,
-    prelude::{AnimationBuilderExt, EaseFunction},
+    prelude::{AnimationBuilderExt, EaseKind},
     tween::TargetComponent,
 };
 use bevy_vector_shapes::shapes::ShapeFill;
@@ -165,8 +164,8 @@ fn game_setup(
 ) {
     commands.init_resource::<Timers>();
 
-    commands.add(SpawnMatrix);
-    commands.add(SpawnNextZone);
+    commands.queue(SpawnMatrix);
+    commands.queue(SpawnNextZone);
 
     event_writer.send(ScoreEvent::LevelStart(1));
 
@@ -196,11 +195,11 @@ fn generate_piece(
 
     info!("Generating new tetrimino {:?}", tetrimino.kind);
 
-    commands.add(SpawnPiece::current(tetrimino).with_parent(state.matrix.root_entity));
+    commands.queue(SpawnPiece::current(tetrimino).with_parent(state.matrix.root_entity));
     let ghost_pos = state.matrix.lowest_valid_pos(&tetrimino, &INITIAL_POS);
-    commands.add(SpawnPiece::ghost(tetrimino, ghost_pos).with_parent(state.matrix.root_entity));
+    commands.queue(SpawnPiece::ghost(tetrimino, ghost_pos).with_parent(state.matrix.root_entity));
 
-    commands.add(SpawnPiece::next(next_piece).with_parent(next_zone_entity));
+    commands.queue(SpawnPiece::next(next_piece).with_parent(next_zone_entity));
 
     next_phase.set(Phase::Falling);
 }
@@ -380,7 +379,7 @@ fn handle_lock(
                     // children.spawn(BlockBundle::new(block_pos));
                     children
                         .spawn((Block, Positioned(block_pos)))
-                        .add(SpawnMino(block_pos, Some(GRAY.into())));
+                        .queue(SpawnMino(block_pos, Some(GRAY.into())));
                 }
             });
         // for block_pos in piece.block_positions(piece_pos) {
@@ -452,7 +451,7 @@ fn animate(
 
     commands.spawn(Animator).animation().insert_tween_here(
         Duration::from_secs_f32(0.3),
-        EaseFunction::QuadraticOut,
+        EaseKind::QuadraticOut,
         entities
             .state(WHITE.with_alpha(1.0).into())
             .with(shape_color_to(Color::srgb(5.0, 5.0, 5.0))),

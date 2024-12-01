@@ -22,18 +22,31 @@ fn enter_splash(mut commands: Commands, assets: Res<AssetServer>) {
     let font_handle: Handle<Font> = assets.load("fonts/BungeeSpice-Regular.ttf");
 
     commands
-        .spawn(Text2dBundle {
-            text: Text::from_section(
-                "Betris",
-                TextStyle {
-                    font: font_handle,
-                    font_size: 78.0,
-                    color: Color::WHITE,
-                },
-            )
-            .with_justify(JustifyText::Center),
-            ..default()
-        })
+        // .spawn(Text2dBundle {
+        //     text: Text::from_section(
+        //         "Betris",
+        //         TextStyle {
+        //             font: font_handle,
+        //             font_size: 78.0,
+        //             color: Color::WHITE,
+        //         },
+        //     )
+        //     .with_justify(JustifyText::Center),
+        //     ..default()
+        // })
+        .spawn((
+            Text2d("Betris".into()),
+            TextFont {
+                font: font_handle,
+                font_size: 78.0,
+                ..default()
+            },
+            TextColor(Color::WHITE),
+            TextLayout {
+                justify: JustifyText::Center,
+                ..default()
+            },
+        ))
         .insert(StateScoped(Screen::Splash));
 
     commands.insert_resource(SplashTime(Timer::from_seconds(2.0, TimerMode::Once)));
