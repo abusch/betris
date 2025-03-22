@@ -1,6 +1,6 @@
 use bevy::{color::palettes, prelude::*};
 use num_enum::TryFromPrimitive;
-use rand::thread_rng;
+use rand::rng;
 
 use super::{data::OFFSETS, pos::Pos};
 
@@ -168,7 +168,7 @@ impl Bag {
         use rand::seq::SliceRandom;
         self.0.clear();
         self.0.extend_from_slice(TetriminoKind::all());
-        self.0.shuffle(&mut thread_rng());
+        self.0.shuffle(&mut rng());
     }
 
     pub fn pop_next(&mut self) -> TetriminoKind {

@@ -22,7 +22,7 @@ fn setup(mut commands: Commands, assets: Res<AssetServer>) {
             Name::new("Score"),
             Text::new("Score: "),
             text_font.clone(),
-            text_color.clone(),
+            text_color,
             TextLayout::new_with_no_wrap(),
             Node {
                 position_type: PositionType::Absolute,
@@ -35,7 +35,7 @@ fn setup(mut commands: Commands, assets: Res<AssetServer>) {
             children.spawn((
                 TextSpan("".into()),
                 text_font.clone(),
-                text_color.clone(),
+                text_color,
                 ScoreText,
             ));
         });

@@ -2,7 +2,7 @@
 name = "betris"
 description = "A Tetris-clone written with Bevy"
 version = "0.1.0"
-edition = "2021"
+edition = "2024"
 authors = ["Antoine Busch <antoine.busch@gmail.com"]
 license = "MIT OR Apache-2.0"
 readme = "README.md"
@@ -19,7 +19,7 @@ dev = [
   "bevy/dynamic_linking",
   "bevy/bevy_dev_tools",
   "bevy-inspector-egui",
-  # "iyes_perf_ui",
+  "iyes_perf_ui",
 ]
 dev_native = [
   "dev",
@@ -31,12 +31,12 @@ dev_native = [
 
 [dependencies]
 bevy = { version = "0.15.0", features = ["dynamic_linking"] }
-bevy-inspector-egui = { version = "0.28.0", optional = true }
+bevy-inspector-egui = { version = "0.30.0", optional = true }
 leafwing-input-manager = "0.16"
 num_enum = "0.7"
-rand = "0.8"
-strum = { version = "0.26", features = ["derive"] }
-# iyes_perf_ui = { version = "0.3", optional = true }
+rand = "0.9"
+strum = { version = "0.27", features = ["derive"] }
+iyes_perf_ui = { version = "0.4", optional = true }
 bevy_tween = { version = "0.7.0", default-features = false, features = [
   "bevy_render",
   "bevy_sprite",
