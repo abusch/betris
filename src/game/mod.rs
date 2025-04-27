@@ -2,7 +2,7 @@ use std::time::Duration;
 
 use bevy::{
     color::palettes::css::{BLACK, GRAY, WHITE},
-    ecs::component::StorageType,
+    ecs::component::{Mutable, StorageType},
     prelude::*,
 };
 use bevy_enhanced_input::{events::ActionEvents, prelude::Actions};
@@ -103,59 +103,22 @@ pub struct GameState {
 pub struct Block;
 
 impl Component for Block {
+    type Mutability = Mutable;
     fn register_component_hooks(hooks: &mut bevy::ecs::component::ComponentHooks) {
-        hooks.on_add(|mut world, entity, _component_id| {
+        hooks.on_add(|mut world, ctx| {
             let pos = world
-                .entity(entity)
+                .entity(ctx.entity)
                 .get::<Positioned>()
                 .copied()
                 .expect("Block component without Pos!");
             info!("Block was added at {}", *pos);
             let mut state = world.resource_mut::<GameState>();
-            state.matrix.insert(*pos, entity);
+            state.matrix.insert(*pos, ctx.entity);
         });
     }
 
     const STORAGE_TYPE: StorageType = StorageType::Table;
 }
-
-// #[derive(Bundle)]
-// pub struct BlockBundle {
-//     // sprite: SpriteBundle,
-//     shape: ShapeBundle<RectangleComponent>,
-//     block: Block,
-//     pos: Positioned,
-// }
-//
-// impl BlockBundle {
-//     pub fn new(pos: Pos) -> Self {
-//         let mut transform: Transform = pos.into();
-//         transform.translation += Vec3::new(0.5, 0.5, 0.0);
-//         Self {
-//             shape: ShapeBundle::rect(
-//                 &ShapeConfig {
-//                     transform,
-//                     color: GRAY.into(),
-//                     corner_radii: Vec4::splat(0.1),
-//                     ..ShapeConfig::default_2d()
-//                 },
-//                 Vec2::splat(1.0),
-//             ),
-//             // sprite: SpriteBundle {
-//             //     sprite: Sprite {
-//             //         custom_size: Some(Vec2::splat(1.0)),
-//             //         anchor: Anchor::BottomLeft,
-//             //         color: palettes::css::GRAY.into(),
-//             //         ..default()
-//             //     },
-//             //     transform: pos.into(),
-//             //     ..default()
-//             // },
-//             pos: Positioned(pos),
-//             block: Block,
-//         }
-//     }
-// }
 
 fn game_setup(
     mut commands: Commands,
@@ -167,7 +130,7 @@ fn game_setup(
     commands.queue(SpawnMatrix);
     commands.queue(SpawnNextZone);
 
-    event_writer.send(ScoreEvent::LevelStart(1));
+    event_writer.write(ScoreEvent::LevelStart(1));
 
     next_phase.set(Phase::Generation);
 }
@@ -179,7 +142,7 @@ fn game_cleanup(mut commands: Commands) {
 fn clean_up_pieces(mut commands: Commands, pieces: Query<Entity, With<Tetrimino>>) {
     for piece in pieces.into_iter() {
         info!("Despawning tetrimino");
-        commands.entity(piece).despawn_recursive();
+        commands.entity(piece).despawn();
     }
 }
 
@@ -188,8 +151,8 @@ fn generate_piece(
     mut state: ResMut<GameState>,
     mut next_phase: ResMut<NextState<Phase>>,
     next_zone: Query<Entity, With<NextTetriminoZone>>,
-) {
-    let next_zone_entity = next_zone.single();
+) -> Result {
+    let next_zone_entity = next_zone.single()?;
     let tetrimino: Tetrimino = state.bag.pop_next().into();
     let next_piece: Tetrimino = state.bag.peek_next().into();
 
@@ -202,6 +165,8 @@ fn generate_piece(
     commands.queue(SpawnPiece::next(next_piece).with_parent(next_zone_entity));
 
     next_phase.set(Phase::Falling);
+
+    Ok(())
 }
 
 fn start_fall_timer(mut timers: ResMut<Timers>) {
@@ -212,44 +177,34 @@ fn start_fall_timer(mut timers: ResMut<Timers>) {
 fn first_drop(
     mut current_piece_query: Query<(&mut Tetrimino, &mut Positioned), With<CurrentPiece>>,
     state: Res<GameState>,
-) {
-    let (current_piece, mut pos) = current_piece_query.single_mut();
+) -> Result {
+    let (current_piece, mut pos) = current_piece_query.single_mut()?;
     let down_pos = pos.down();
     if current_piece.min_y(&down_pos) >= 0 && state.matrix.is_pos_valid(&current_piece, &down_pos) {
         **pos = down_pos;
     }
+
+    Ok(())
 }
 
 fn tick_timers(mut timers: ResMut<Timers>, time: Res<Time>) {
     timers.tick(time.delta());
 }
 
-// pub struct LeftRightHandler {}
-//
-// impl LeftRightHandler {
-//     pub fn new_direction(&mut self) {
-//         let left_just_pressed = true;
-//         let left_pressed = true;
-//         let right_just_pressed = true;
-//         let right_pressed = true;
-//     }
-// }
-
 fn handle_input(
     mut current_piece_query: Query<(&mut Tetrimino, &mut Positioned), With<CurrentPiece>>,
     state: Res<GameState>,
-    // action_state: Res<ActionState<Action>>,
     action_state: Single<&Actions<InGame>>,
     mut timers: ResMut<Timers>,
     mut next_phase: ResMut<NextState<Phase>>,
-) {
+) -> Result {
     let action_state = action_state.into_inner();
-    let (mut current_piece, mut pos) = current_piece_query.single_mut();
+    let (mut current_piece, mut pos) = current_piece_query.single_mut()?;
 
     // If lock timer has expired -> move to LOCK state
     if timers.lock.times_finished_this_tick() > 0 {
         next_phase.set(Phase::Lock);
-        return;
+        return Ok(());
     }
 
     if timers.lock.paused() {
@@ -274,11 +229,6 @@ fn handle_input(
             *current_piece = rotated;
         }
     }
-    // if action_state.pressed(&Action::Left) {
-    //     if action_state.just_pressed(&Action::Left) {
-    //         // start auto-repeat delay timer
-    //     }
-    // }
 
     if action_state.action::<Left>().events() == ActionEvents::STARTED | ActionEvents::FIRED {
         let left_pos = pos.left();
@@ -299,7 +249,7 @@ fn handle_input(
     if action_state.action::<HardDrop>().events() == ActionEvents::STARTED | ActionEvents::FIRED {
         **pos = state.matrix.lowest_valid_pos(&current_piece, &pos);
         next_phase.set(Phase::Lock);
-        return;
+        return Ok(());
     }
     if action_state.action::<SoftDrop>().events() == ActionEvents::STARTED | ActionEvents::FIRED {
         timers.fall.soft_drop();
@@ -323,15 +273,17 @@ fn handle_input(
             timers.fall.unpause();
         }
     }
+
+    Ok(())
 }
 
 fn update_ghost(
     current: Query<(&Positioned, &Tetrimino), (With<CurrentPiece>, Without<GhostPiece>)>,
     mut ghost: Query<(&mut Positioned, &mut Tetrimino), (With<GhostPiece>, Without<CurrentPiece>)>,
     state: Res<GameState>,
-) {
-    let (current_pos, current_tetrimino) = current.single();
-    let (mut ghost_pos, mut ghost_tetrimino) = ghost.single_mut();
+) -> Result {
+    let (current_pos, current_tetrimino) = current.single()?;
+    let (mut ghost_pos, mut ghost_tetrimino) = ghost.single_mut()?;
     let new_pos = state
         .matrix
         .lowest_valid_pos(current_tetrimino, &current_pos.0);
@@ -341,6 +293,8 @@ fn update_ghost(
     if ghost_pos.0 != new_pos {
         ghost_pos.0 = new_pos;
     }
+
+    Ok(())
 }
 
 /// Update the piece's Transform based on its grid position.
@@ -360,7 +314,7 @@ fn update_piece_transform(
         if piece.is_changed() {
             info!("Updating current piece's blocks transform");
             for (child, offset) in children.iter().zip(piece.block_offsets()) {
-                if let Ok(mut transform) = blocks.get_mut(*child) {
+                if let Ok(mut transform) = blocks.get_mut(child) {
                     *transform = offset.into();
                 }
             }
@@ -374,7 +328,7 @@ fn handle_lock(
     current_piece: Query<(&Positioned, &Tetrimino), With<CurrentPiece>>,
     mut next_phase: ResMut<NextState<Phase>>,
 ) {
-    if let Ok((piece_pos, piece)) = current_piece.get_single() {
+    if let Ok((piece_pos, piece)) = current_piece.single() {
         info!("Locking piece");
 
         commands
@@ -387,23 +341,6 @@ fn handle_lock(
                         .queue(SpawnMino(block_pos, Some(GRAY.into())));
                 }
             });
-        // for block_pos in piece.block_positions(piece_pos) {
-        //     // children.spawn(BlockBundle::new(block_pos));
-        //     commands.add(SpawnMino(
-        //         state.matrix.root_entity,
-        //         block_pos,
-        //         Some(GRAY.into()),
-        //     ));
-        // }
-
-        // commands
-        //     .entity(state.matrix.root_entity)
-        //     .with_children(|children| {
-        //         for block_pos in piece.block_positions(piece_pos) {
-        //             // children.spawn(BlockBundle::new(block_pos));
-        //             children.spawn(BlockBundle::new(block_pos));
-        //         }
-        //     });
     }
 
     next_phase.set(Phase::Pattern);
@@ -482,7 +419,7 @@ fn eliminate(
     // Despawn entities that were deleted
     for e in to_delete.iter() {
         info!("Despawning block {e}");
-        commands.entity(e).despawn_recursive();
+        commands.entity(e).despawn();
     }
 
     // Remove lines from the matrix
@@ -496,7 +433,7 @@ fn eliminate(
 
     // Reflect new positions
     for (pos, entity) in state.matrix.iter_non_empty() {
-        if let Some(mut entity_commands) = commands.get_entity(entity) {
+        if let Ok(mut entity_commands) = commands.get_entity(entity) {
             entity_commands.insert(Positioned(pos));
         } else {
             warn!("Missing entity {entity}");
@@ -506,16 +443,16 @@ fn eliminate(
     match num_lines {
         0 => (),
         1 => {
-            event_writer.send(ScoreEvent::Single);
+            event_writer.write(ScoreEvent::Single);
         }
         2 => {
-            event_writer.send(ScoreEvent::Double);
+            event_writer.write(ScoreEvent::Double);
         }
         3 => {
-            event_writer.send(ScoreEvent::Triple);
+            event_writer.write(ScoreEvent::Triple);
         }
         4 => {
-            event_writer.send(ScoreEvent::Tetris);
+            event_writer.write(ScoreEvent::Tetris);
         }
         n => warn!("How did we complete {n} lines?!?"),
     }

@@ -1,7 +1,4 @@
-use bevy::{
-    ecs::{system::RunSystemOnce, world::Command},
-    prelude::*,
-};
+use bevy::{ecs::system::RunSystemOnce, prelude::*};
 
 use crate::game::SCALE;
 
@@ -11,7 +8,7 @@ pub struct SpawnNextZone;
 impl Command for SpawnNextZone {
     fn apply(self, world: &mut World) {
         world
-            .run_system_once_with(self, spawn)
+            .run_system_once_with(spawn, self)
             .expect("Failed to spawn NextZone");
     }
 }

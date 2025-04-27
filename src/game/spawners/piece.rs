@@ -1,9 +1,6 @@
 use bevy::{
     color::palettes::basic::AQUA,
-    ecs::{
-        system::{EntityCommand, RunSystemOnce},
-        world::Command,
-    },
+    ecs::system::{EntityCommand, RunSystemOnce},
     prelude::*,
 };
 use bevy_vector_shapes::{
@@ -13,7 +10,7 @@ use bevy_vector_shapes::{
 
 use crate::model::{Pos, Tetrimino};
 
-use super::{Positioned, INITIAL_POS};
+use super::{INITIAL_POS, Positioned};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PieceType {
@@ -51,7 +48,7 @@ impl SpawnPiece {
 impl Command for SpawnPiece {
     fn apply(self, world: &mut World) {
         world
-            .run_system_once_with(self, spawn)
+            .run_system_once_with(spawn, self)
             .expect("Failed to spawn Piece");
     }
 }
@@ -94,13 +91,6 @@ fn spawn(In(config): In<SpawnPiece>, mut commands: Commands) {
 #[require(Tetrimino, Positioned, Transform, Visibility)]
 pub struct Piece;
 
-// #[derive(Bundle)]
-// pub struct PieceBundle {
-//     spatial: SpatialBundle,
-//     piece: Tetrimino,
-//     pos: Positioned,
-// }
-
 /// Marker component for the current piece (i.e. the piece controlled by the player)
 #[derive(Component)]
 pub struct CurrentPiece;
@@ -117,9 +107,10 @@ pub struct Mino;
 pub struct SpawnMino(pub Pos, pub Option<Color>);
 
 impl EntityCommand for SpawnMino {
-    fn apply(self, entity: Entity, world: &mut World) {
-        world
-            .run_system_once_with((entity, self), spawn_mino)
+    fn apply(self, mut entity_world: EntityWorldMut) {
+        let entity = entity_world.id();
+        entity_world
+            .world_scope(|world| world.run_system_once_with(spawn_mino, (entity, self)))
             .unwrap()
     }
 }

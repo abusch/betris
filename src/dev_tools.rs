@@ -4,7 +4,7 @@ use bevy::{dev_tools::states::log_transitions, prelude::*};
 use crate::{AppSet, game::Phase, screen::Screen};
 
 pub fn plugin(app: &mut App) {
-    app.add_plugins(bevy::diagnostic::FrameTimeDiagnosticsPlugin)
+    app.add_plugins(bevy::diagnostic::FrameTimeDiagnosticsPlugin::default())
         .add_plugins(bevy::diagnostic::EntityCountDiagnosticsPlugin)
         .add_plugins(bevy::diagnostic::SystemInformationDiagnosticsPlugin)
         // .add_plugins(PerfUiPlugin)

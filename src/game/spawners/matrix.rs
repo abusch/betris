@@ -1,8 +1,4 @@
-use bevy::{
-    ecs::{system::RunSystemOnce, world::Command},
-    prelude::*,
-    sprite::Anchor,
-};
+use bevy::{ecs::system::RunSystemOnce, prelude::*, sprite::Anchor};
 use bevy_enhanced_input::prelude::Actions;
 
 use crate::game::{GameState, MATRIX_WIDTH, SCALE, input::InGame};
@@ -13,7 +9,7 @@ pub struct SpawnMatrix;
 impl Command for SpawnMatrix {
     fn apply(self, world: &mut World) {
         world
-            .run_system_once_with(self, spawn)
+            .run_system_once_with(spawn, self)
             .expect("Failed to spawn Matrix");
     }
 }

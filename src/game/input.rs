@@ -9,7 +9,7 @@ pub fn plugin(app: &mut App) {
 }
 
 pub fn binding(trigger: Trigger<Binding<InGame>>, mut game: Query<&mut Actions<InGame>>) {
-    let mut actions = game.get_mut(trigger.entity()).unwrap();
+    let mut actions = game.get_mut(trigger.target()).unwrap();
     actions.bind::<Left>().to(KeyCode::ArrowLeft);
     actions.bind::<Right>().to(KeyCode::ArrowRight);
     actions

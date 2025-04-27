@@ -45,7 +45,7 @@ fn setup(mut commands: Commands, assets: Res<AssetServer>) {
 struct ScoreText;
 
 fn update(score: Res<Score>, mut text: Query<&mut TextSpan, With<ScoreText>>) {
-    if let Ok(mut score_text) = text.get_single_mut() {
+    if let Ok(mut score_text) = text.single_mut() {
         score_text.0 = score.formatted();
     }
 }

@@ -27,7 +27,6 @@ impl Plugin for AppPlugin {
 
         app.add_plugins((game::plugin, screen::plugin, tweening::plugin));
 
-        // TODO: disable in release mode
         #[cfg(feature = "dev")]
         app.add_plugins(dev_tools::plugin);
     }
