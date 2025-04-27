@@ -5,19 +5,19 @@ use bevy::{
     ecs::component::StorageType,
     prelude::*,
 };
+use bevy_enhanced_input::{events::ActionEvents, prelude::Actions};
 use bevy_tween::{
     bevy_time_runner::TimeRunnerEnded,
     prelude::{AnimationBuilderExt, EaseKind},
     tween::TargetComponent,
 };
 use bevy_vector_shapes::shapes::ShapeFill;
-use input::Action;
-use leafwing_input_manager::action_state::ActionState;
+use input::{HardDrop, InGame, Left, Right, RotateLeft, RotateRight, SoftDrop};
 use score::ScoreEvent;
 use spawners::{
+    INITIAL_POS, Positioned, SpawnMatrix, SpawnNextZone, SpawnPiece,
     next_zone::NextTetriminoZone,
     piece::{CurrentPiece, GhostPiece, Mino, SpawnMino},
-    Positioned, SpawnMatrix, SpawnNextZone, SpawnPiece, INITIAL_POS,
 };
 use timers::Timers;
 
@@ -238,10 +238,12 @@ fn tick_timers(mut timers: ResMut<Timers>, time: Res<Time>) {
 fn handle_input(
     mut current_piece_query: Query<(&mut Tetrimino, &mut Positioned), With<CurrentPiece>>,
     state: Res<GameState>,
-    action_state: Res<ActionState<Action>>,
+    // action_state: Res<ActionState<Action>>,
+    action_state: Single<&Actions<InGame>>,
     mut timers: ResMut<Timers>,
     mut next_phase: ResMut<NextState<Phase>>,
 ) {
+    let action_state = action_state.into_inner();
     let (mut current_piece, mut pos) = current_piece_query.single_mut();
 
     // If lock timer has expired -> move to LOCK state
@@ -259,12 +261,14 @@ fn handle_input(
         }
     }
 
-    if action_state.just_pressed(&Action::RotateLeft) {
+    if action_state.action::<RotateLeft>().events() == ActionEvents::STARTED | ActionEvents::FIRED {
         let rotated = current_piece.rotated_ccw();
         if state.matrix.is_pos_valid(&rotated, &pos) {
             *current_piece = rotated;
         }
-    } else if action_state.just_pressed(&Action::RotateRight) {
+    }
+    if action_state.action::<RotateRight>().events() == ActionEvents::STARTED | ActionEvents::FIRED
+    {
         let rotated = current_piece.rotated_cw();
         if state.matrix.is_pos_valid(&rotated, &pos) {
             *current_piece = rotated;
@@ -276,14 +280,15 @@ fn handle_input(
     //     }
     // }
 
-    if action_state.just_pressed(&Action::Left) {
+    if action_state.action::<Left>().events() == ActionEvents::STARTED | ActionEvents::FIRED {
         let left_pos = pos.left();
         if current_piece.min_x(&left_pos) >= 0
             && state.matrix.is_pos_valid(&current_piece, &left_pos)
         {
             **pos = left_pos;
         }
-    } else if action_state.just_pressed(&Action::Right) {
+    } else if action_state.action::<Right>().events() == ActionEvents::STARTED | ActionEvents::FIRED
+    {
         let right_pos = pos.right();
         if current_piece.max_x(&right_pos) <= 9
             && state.matrix.is_pos_valid(&current_piece, &right_pos)
@@ -291,14 +296,14 @@ fn handle_input(
             **pos = right_pos;
         }
     }
-    if action_state.just_pressed(&Action::HardDrop) {
+    if action_state.action::<HardDrop>().events() == ActionEvents::STARTED | ActionEvents::FIRED {
         **pos = state.matrix.lowest_valid_pos(&current_piece, &pos);
         next_phase.set(Phase::Lock);
         return;
     }
-    if action_state.just_pressed(&Action::SoftDrop) {
+    if action_state.action::<SoftDrop>().events() == ActionEvents::STARTED | ActionEvents::FIRED {
         timers.fall.soft_drop();
-    } else if action_state.just_released(&Action::SoftDrop) {
+    } else if action_state.action::<SoftDrop>().events() == ActionEvents::COMPLETED {
         timers.fall.normal_drop();
     }
 

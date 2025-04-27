@@ -1,5 +1,5 @@
 use bevy::{dev_tools::states::log_transitions, prelude::*};
-use iyes_perf_ui::{PerfUiPlugin, prelude::PerfUiDefaultEntries};
+// use iyes_perf_ui::{PerfUiPlugin, prelude::PerfUiDefaultEntries};
 
 use crate::{AppSet, game::Phase, screen::Screen};
 
@@ -7,7 +7,7 @@ pub fn plugin(app: &mut App) {
     app.add_plugins(bevy::diagnostic::FrameTimeDiagnosticsPlugin)
         .add_plugins(bevy::diagnostic::EntityCountDiagnosticsPlugin)
         .add_plugins(bevy::diagnostic::SystemInformationDiagnosticsPlugin)
-        .add_plugins(PerfUiPlugin)
+        // .add_plugins(PerfUiPlugin)
         .add_systems(Startup, setup)
         .add_systems(
             Update,
@@ -20,7 +20,7 @@ pub fn plugin(app: &mut App) {
 }
 
 fn setup(mut commands: Commands) {
-    commands.spawn(PerfUiDefaultEntries::default());
+    // commands.spawn(PerfUiDefaultEntries::default());
 }
 
 fn close_on_esc(

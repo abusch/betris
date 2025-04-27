@@ -3,8 +3,9 @@ use bevy::{
     prelude::*,
     sprite::Anchor,
 };
+use bevy_enhanced_input::prelude::Actions;
 
-use crate::game::{GameState, MATRIX_WIDTH, SCALE};
+use crate::game::{GameState, MATRIX_WIDTH, SCALE, input::InGame};
 
 #[derive(Debug)]
 pub struct SpawnMatrix;
@@ -24,6 +25,7 @@ fn spawn(In(_): In<SpawnMatrix>, mut commands: Commands, mut state: ResMut<GameS
             Name::new("Matrix"),
             Transform::from_xyz(-10.0 * SCALE, -11.0 * SCALE, 1.0)
                 .with_scale(Vec3::new(SCALE, SCALE, 1.0)),
+            Actions::<InGame>::default(),
         ))
         .with_children(|children| {
             // "floor"
