@@ -18,6 +18,7 @@ fn spawn(In(_): In<SpawnNextZone>, mut commands: Commands) {
     commands.spawn((
         Name::new("Next tetrimino zone"),
         Transform::from_xyz(100.0, 100.0, 1.0).with_scale(Vec3::new(SCALE, SCALE, 1.0)),
+        Visibility::default(),
         NextTetriminoZone,
     ));
 }
