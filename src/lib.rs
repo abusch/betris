@@ -18,7 +18,12 @@ impl Plugin for AppPlugin {
         // Order new `AppStep` variants by adding them here:
         app.configure_sets(
             Update,
-            (AppSet::TickTimers, AppSet::RecordInput, AppSet::Update).chain(),
+            (
+                AppSystems::TickTimers,
+                AppSystems::RecordInput,
+                AppSystems::Update,
+            )
+                .chain(),
         );
 
         app.add_plugins((DefaultPlugins, Shape2dPlugin::default()))
@@ -36,7 +41,7 @@ impl Plugin for AppPlugin {
 /// When adding a new variant, make sure to order it in the `configure_sets`
 /// call above.
 #[derive(SystemSet, Debug, Clone, Copy, Eq, PartialEq, Hash)]
-enum AppSet {
+enum AppSystems {
     /// Tick timers.
     TickTimers,
     /// Record player input.

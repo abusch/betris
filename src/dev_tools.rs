@@ -1,7 +1,7 @@
 use bevy::{dev_tools::states::log_transitions, prelude::*};
 // use iyes_perf_ui::{PerfUiPlugin, prelude::PerfUiDefaultEntries};
 
-use crate::{AppSet, game::Phase, screen::Screen};
+use crate::{AppSystems, game::Phase, screen::Screen};
 
 pub fn plugin(app: &mut App) {
     app.add_plugins(bevy::diagnostic::FrameTimeDiagnosticsPlugin::default())
@@ -12,7 +12,7 @@ pub fn plugin(app: &mut App) {
         .add_systems(
             Update,
             (
-                close_on_esc.in_set(AppSet::RecordInput),
+                close_on_esc.in_set(AppSystems::RecordInput),
                 log_transitions::<Screen>,
                 log_transitions::<Phase>,
             ),

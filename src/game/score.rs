@@ -1,6 +1,6 @@
 use bevy::prelude::*;
 
-use crate::{screen::Screen, AppSet};
+use crate::{AppSystems, screen::Screen};
 
 pub fn plugin(app: &mut App) {
     app.init_resource::<Score>()
@@ -11,7 +11,7 @@ pub fn plugin(app: &mut App) {
             Update,
             update
                 .run_if(in_state(Screen::Gameplay))
-                .in_set(AppSet::Update),
+                .in_set(AppSystems::Update),
         )
         .add_systems(OnExit(Screen::Gameplay), cleanup);
 }

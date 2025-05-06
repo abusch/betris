@@ -3,7 +3,7 @@ use bevy::input::common_conditions::input_toggle_active;
 use bevy::prelude::*;
 // use iyes_perf_ui::{entry::PerfUiEntry, prelude::PerfUiRoot, PerfUiAppExt};
 
-use crate::{screen::Screen, AppSet};
+use crate::{AppSystems, screen::Screen};
 
 use super::SCALE;
 
@@ -20,7 +20,7 @@ pub fn plugin(app: &mut App) {
             Update,
             (debug_grid)
                 .run_if(in_state(Screen::Gameplay).and(input_toggle_active(false, KeyCode::KeyG)))
-                .in_set(AppSet::Update),
+                .in_set(AppSystems::Update),
         );
 }
 

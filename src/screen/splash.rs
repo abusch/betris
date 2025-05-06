@@ -1,6 +1,6 @@
 use bevy::prelude::*;
 
-use crate::AppSet;
+use crate::AppSystems;
 
 use super::Screen;
 
@@ -10,7 +10,7 @@ pub fn plugin(app: &mut App) {
         .add_systems(
             Update,
             countdown
-                .in_set(AppSet::TickTimers)
+                .in_set(AppSystems::TickTimers)
                 .run_if(in_state(Screen::Splash)),
         );
 }
