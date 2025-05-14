@@ -37,8 +37,7 @@ num_enum = "0.7"
 rand = "0.9"
 strum = { version = "0.27", features = ["derive"] }
 # iyes_perf_ui = { version = "0.4", optional = true }
-# bevy_tween = { version = "0.7.0", default-features = false, features = [
-bevy_tween = { version = "0.8.0", git = "https://github.com/Multirious/bevy_tween", rev = "refs/pull/57/head", default-features = false, features = [
+bevy_tween = { version = "0.8.0", default-features = false, features = [
   "bevy_render",
   "bevy_sprite",
   "bevy_asset",
