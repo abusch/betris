@@ -1,7 +1,6 @@
 use bevy::color::palettes;
 use bevy::input::common_conditions::input_toggle_active;
 use bevy::prelude::*;
-// use iyes_perf_ui::{entry::PerfUiEntry, prelude::PerfUiRoot, PerfUiAppExt};
 
 use crate::{AppSystems, screen::Screen};
 

@@ -23,6 +23,7 @@ use timers::Timers;
 
 use self::matrix::Matrix;
 use crate::{
+    AppSystems,
     model::{Bag, Tetrimino},
     screen::Screen,
     tweening::shape_color_to,
@@ -43,6 +44,7 @@ pub const SCALE: f32 = 20.0;
 
 pub fn plugin(app: &mut App) {
     app.init_state::<Phase>()
+        .register_type::<Phase>()
         .init_resource::<GameState>()
         .register_type::<GameState>()
         .insert_resource(ClearColor(BLACK.into()))
@@ -56,18 +58,23 @@ pub fn plugin(app: &mut App) {
         .add_systems(
             Update,
             (
-                tick_timers,
-                handle_input,
-                update_ghost,
-                update_piece_transform,
+                tick_timers.in_set(AppSystems::TickTimers),
+                handle_input.in_set(AppSystems::RecordInput),
+                (update_ghost, update_piece_transform)
+                    .chain()
+                    .in_set(AppSystems::Update),
             )
-                .chain()
                 .run_if(in_state(Phase::Falling)),
         )
         .add_systems(OnEnter(Phase::Lock), handle_lock)
         .add_systems(OnEnter(Phase::Pattern), detect_patterns)
         .add_systems(OnEnter(Phase::Animate), animate)
-        .add_systems(Update, animate_done.run_if(in_state(Phase::Animate)))
+        .add_systems(
+            Update,
+            animate_done
+                .in_set(AppSystems::Update)
+                .run_if(in_state(Phase::Animate)),
+        )
         .add_systems(OnEnter(Phase::Eliminate), eliminate)
         .add_systems(OnExit(Phase::Eliminate), update_blocks_transform)
         .add_systems(OnExit(Screen::Gameplay), game_cleanup);
@@ -76,11 +83,9 @@ pub fn plugin(app: &mut App) {
 
     #[cfg(feature = "dev")]
     app.add_plugins(debug::plugin);
-    // app.add_plugins(ResourceInspectorPlugin::<GameState>::default());
 }
 
-#[allow(unused)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Hash, States, strum::Display)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Hash, States, Reflect, strum::Display)]
 pub enum Phase {
     Generation,
     Falling,

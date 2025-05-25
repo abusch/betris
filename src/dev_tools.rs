@@ -1,12 +1,26 @@
 use bevy::{dev_tools::states::log_transitions, prelude::*};
-// use iyes_perf_ui::{PerfUiPlugin, prelude::PerfUiDefaultEntries};
+use bevy_inspector_egui::{
+    bevy_egui::EguiPlugin,
+    quick::{ResourceInspectorPlugin, StateInspectorPlugin},
+};
 
-use crate::{AppSystems, game::Phase, screen::Screen};
+use crate::{
+    AppSystems,
+    game::{GameState, Phase},
+    screen::Screen,
+};
 
 pub fn plugin(app: &mut App) {
     app.add_plugins(bevy::diagnostic::FrameTimeDiagnosticsPlugin::default())
         .add_plugins(bevy::diagnostic::EntityCountDiagnosticsPlugin)
         .add_plugins(bevy::diagnostic::SystemInformationDiagnosticsPlugin)
+        .add_plugins((
+            EguiPlugin {
+                enable_multipass_for_primary_context: false,
+            },
+            StateInspectorPlugin::<Phase>::default(),
+            ResourceInspectorPlugin::<GameState>::default(),
+        ))
         // .add_plugins(PerfUiPlugin)
         .add_systems(Startup, setup)
         .add_systems(
