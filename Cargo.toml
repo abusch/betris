@@ -1,12 +1,26 @@
 [package]
 name = "betris"
-description = "A Tetris-clone written with Bevy"
 version = "0.1.0"
 edition = "2024"
-authors = ["Antoine Busch <antoine.busch@gmail.com"]
-license = "MIT OR Apache-2.0"
+description = "A Tetris-clone written with Bevy"
 readme = "README.md"
 repository = "https://github.com/abusch/betris"
+license = "MIT OR Apache-2.0"
+
+[dependencies]
+bevy = { version = "0.16.0", features = ["dynamic_linking", "wayland"] }
+bevy_enhanced_input = "0.11"
+bevy-inspector-egui = { version = "0.31.0", optional = true }
+bevy_tween = { version = "0.8.0", default-features = false, features = [
+  "bevy_asset",
+  "bevy_render",
+  "bevy_sprite",
+] }
+bevy_vector_shapes = "0.10.0"
+iyes_perf_ui = { version = "0.5", optional = true }
+num_enum = "0.7"
+rand = "0.9"
+strum = { version = "0.27", features = ["derive"] }
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 [features]
@@ -15,34 +29,19 @@ default = [
   "dev_native",
 ]
 dev = [
+  "bevy-inspector-egui",
+  "bevy/bevy_dev_tools",
   # Improve compile times for dev builds by linking Bevy as a dynamic library.
   "bevy/dynamic_linking",
-  "bevy/bevy_dev_tools",
-  "bevy-inspector-egui",
-  # "iyes_perf_ui",
+  "iyes_perf_ui",
 ]
 dev_native = [
-  "dev",
-  # Enable asset hot reloading for native dev builds.
-  "bevy/file_watcher",
   # Enable embedded asset hot reloading for native dev builds.
   "bevy/embedded_watcher",
+  # Enable asset hot reloading for native dev builds.
+  "bevy/file_watcher",
+  "dev",
 ]
-
-[dependencies]
-bevy = { version = "0.16.0", features = ["dynamic_linking", "wayland"] }
-bevy-inspector-egui = { version = "0.31.0", optional = true }
-bevy_enhanced_input = "0.11"
-num_enum = "0.7"
-rand = "0.9"
-strum = { version = "0.27", features = ["derive"] }
-# iyes_perf_ui = { version = "0.4", optional = true }
-bevy_tween = { version = "0.8.0", default-features = false, features = [
-  "bevy_render",
-  "bevy_sprite",
-  "bevy_asset",
-] }
-bevy_vector_shapes = "0.10.0"
 
 # Idiomatic Bevy code often triggers these lints, and the CI workflow treats them as errors.
 # In some cases they may still signal poor code quality however, so consider commenting out these lines.
@@ -72,17 +71,17 @@ debug-assertions = false
 # that's what [Trunk reads](https://github.com/trunk-rs/trunk/issues/605).
 # Optimize for size in the wasm-release profile to reduce load times and bandwidth usage on web.
 [profile.release]
-# Compile the entire crate as one unit.
-# Slows compile times, marginal improvements.
-codegen-units = 1
-# Do a second optimization pass over the entire program, including dependencies.
-# Slows compile times, marginal improvements.
-lto = "thin"
 # Optimize with size in mind (also try "z", sometimes it is better).
 # Slightly slows compile times, great improvements to file size and runtime performance.
 opt-level = "s"
 # Strip all debugging information from the binary to slightly reduce file size.
 strip = "debuginfo"
+# Do a second optimization pass over the entire program, including dependencies.
+# Slows compile times, marginal improvements.
+lto = "thin"
+# Compile the entire crate as one unit.
+# Slows compile times, marginal improvements.
+codegen-units = 1
 
 # Override some settings for native builds.
 [profile.release-native]

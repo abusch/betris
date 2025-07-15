@@ -3,6 +3,7 @@ use bevy_inspector_egui::{
     bevy_egui::EguiPlugin,
     quick::{ResourceInspectorPlugin, StateInspectorPlugin},
 };
+use iyes_perf_ui::{PerfUiPlugin, prelude::PerfUiDefaultEntries};
 
 use crate::{
     AppSystems,
@@ -21,7 +22,7 @@ pub fn plugin(app: &mut App) {
             StateInspectorPlugin::<Phase>::default(),
             ResourceInspectorPlugin::<GameState>::default(),
         ))
-        // .add_plugins(PerfUiPlugin)
+        .add_plugins(PerfUiPlugin)
         .add_systems(Startup, setup)
         .add_systems(
             Update,
@@ -34,7 +35,7 @@ pub fn plugin(app: &mut App) {
 }
 
 fn setup(mut commands: Commands) {
-    // commands.spawn(PerfUiDefaultEntries::default());
+    commands.spawn(PerfUiDefaultEntries::default());
 }
 
 fn close_on_esc(
