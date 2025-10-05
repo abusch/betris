@@ -28,9 +28,9 @@ fn spawn(In(_): In<SpawnMatrix>, mut commands: Commands, mut state: ResMut<GameS
                     Name::new("Bottom wall"),
                     Sprite {
                         custom_size: Some(Vec2::new(MATRIX_WIDTH as f32, 1.0)),
-                        anchor: Anchor::BottomLeft,
                         ..default()
                     },
+                    Anchor::BOTTOM_LEFT,
                     // Floor is 1 unit below "zero"
                     Transform::from_xyz(0.0, -1.0, 1.0),
                 ),
@@ -38,27 +38,27 @@ fn spawn(In(_): In<SpawnMatrix>, mut commands: Commands, mut state: ResMut<GameS
                     Name::new("Top wall"),
                     Sprite {
                         custom_size: Some(Vec2::new(MATRIX_WIDTH as f32, 1.0)),
-                        anchor: Anchor::BottomLeft,
                         ..default()
                     },
+                    Anchor::BOTTOM_LEFT,
                     Transform::from_xyz(0.0, 22.0, 1.0),
                 ),
                 (
                     Name::new("Left wall"),
                     Sprite {
                         custom_size: Some(Vec2::new(1.0, 24.0)),
-                        anchor: Anchor::BottomLeft,
                         ..default()
                     },
+                    Anchor::BOTTOM_LEFT,
                     Transform::from_xyz(-1.0, -1.0, 1.0),
                 ),
                 (
                     Name::new("Right wall"),
                     Sprite {
                         custom_size: Some(Vec2::new(1.0, 24.0)),
-                        anchor: Anchor::BottomLeft,
                         ..default()
                     },
+                    Anchor::BOTTOM_LEFT,
                     Transform::from_xyz(MATRIX_WIDTH as f32, -1.0, 1.0),
                 )
             ],

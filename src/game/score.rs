@@ -5,7 +5,7 @@ use crate::{AppSystems, screen::Screen};
 pub fn plugin(app: &mut App) {
     app.init_resource::<Score>()
         .register_type::<Score>()
-        .add_event::<ScoreEvent>()
+        .add_message::<ScoreEvent>()
         .add_systems(OnEnter(Screen::Gameplay), setup)
         .add_systems(
             Update,
@@ -54,7 +54,7 @@ impl Score {
     }
 }
 
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Event)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Message)]
 #[allow(dead_code)]
 pub enum ScoreEvent {
     LevelStart(u8),
@@ -78,7 +78,7 @@ fn cleanup(mut commands: Commands) {
     commands.remove_resource::<Score>();
 }
 
-fn update(mut score: ResMut<Score>, mut events: EventReader<ScoreEvent>) {
+fn update(mut score: ResMut<Score>, mut events: MessageReader<ScoreEvent>) {
     for event in events.read() {
         score.handle_event(event)
     }

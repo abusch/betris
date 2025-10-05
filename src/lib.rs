@@ -1,15 +1,13 @@
 use bevy::{
-    core_pipeline::{bloom::Bloom, tonemapping::Tonemapping},
-    prelude::*,
+    core_pipeline::tonemapping::Tonemapping, post_process::bloom::Bloom, prelude::*,
+    render::view::Hdr,
 };
-use bevy_vector_shapes::Shape2dPlugin;
 
 #[cfg(feature = "dev")]
 mod dev_tools;
 mod game;
 mod model;
 mod screen;
-mod tweening;
 
 pub struct AppPlugin;
 
@@ -26,11 +24,11 @@ impl Plugin for AppPlugin {
                 .chain(),
         );
 
-        app.add_plugins((DefaultPlugins, Shape2dPlugin::default()))
+        app.add_plugins(DefaultPlugins)
             .insert_resource(ClearColor(Color::BLACK))
             .add_systems(Startup, setup);
 
-        app.add_plugins((game::plugin, screen::plugin, tweening::plugin));
+        app.add_plugins((game::plugin, screen::plugin));
 
         #[cfg(feature = "dev")]
         app.add_plugins(dev_tools::plugin);
@@ -51,13 +49,5 @@ enum AppSystems {
 }
 
 fn setup(mut commands: Commands) {
-    commands.spawn((
-        Camera2d,
-        Camera {
-            hdr: true,
-            ..default()
-        },
-        Tonemapping::TonyMcMapface,
-        Bloom::NATURAL,
-    ));
+    commands.spawn((Camera2d, Hdr, Tonemapping::TonyMcMapface, Bloom::NATURAL));
 }

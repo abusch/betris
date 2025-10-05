@@ -2,10 +2,7 @@ use bevy::{
     color::palettes::basic::AQUA,
     ecs::system::{EntityCommand, RunSystemOnce},
     prelude::*,
-};
-use bevy_vector_shapes::{
-    prelude::{BuildShapeChildren, ShapeConfig},
-    shapes::{RectangleSpawner, ThicknessType},
+    sprite::Anchor,
 };
 
 use crate::model::{Pos, Tetrimino};
@@ -118,36 +115,10 @@ impl EntityCommand for SpawnMino {
 fn spawn_mino(In((entity, config)): In<(Entity, SpawnMino)>, mut commands: Commands) {
     let SpawnMino(pos, color) = config;
 
-    let shape_config = if let Some(color) = color {
-        ShapeConfig {
-            color,
-            corner_radii: Vec4::splat(0.1),
-            ..ShapeConfig::default_2d()
-        }
-    } else {
-        ShapeConfig {
-            color: AQUA.into(),
-            corner_radii: Vec4::splat(0.1),
-            hollow: true,
-            thickness: 1.0 / 20.0,
-            thickness_type: ThicknessType::Pixels,
-            ..ShapeConfig::default_2d()
-        }
-    };
-
-    commands
-        .entity(entity)
-        .insert((Mino, Transform::from(pos)))
-        .with_shape_children(&shape_config, |shapes| {
-            shapes.translate(Vec3::new(0.5, 0.5, 0.0));
-            // block
-            shapes.rect(Vec2::splat(0.9));
-            // outline
-            shapes.origin = Some(Vec3::Z * 0.1);
-            shapes.hollow = true;
-            shapes.thickness = 1.0 / 20.0;
-            shapes.thickness_type = ThicknessType::Pixels;
-            shapes.color = shapes.color.darker(0.5);
-            shapes.rect(Vec2::splat(0.9));
-        });
+    commands.entity(entity).insert((
+        Mino,
+        Sprite::from_color(color.unwrap_or(AQUA.into()), Vec2::splat(1.0)),
+        Anchor::BOTTOM_LEFT,
+        Transform::from(pos),
+    ));
 }

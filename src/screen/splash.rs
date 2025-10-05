@@ -43,11 +43,11 @@ fn enter_splash(mut commands: Commands, assets: Res<AssetServer>) {
             },
             TextColor(Color::WHITE),
             TextLayout {
-                justify: JustifyText::Center,
+                justify: Justify::Center,
                 ..default()
             },
         ))
-        .insert(StateScoped(Screen::Splash));
+        .insert(DespawnOnExit(Screen::Splash));
 
     commands.insert_resource(SplashTime(Timer::from_seconds(2.0, TimerMode::Once)));
 }
@@ -57,7 +57,7 @@ fn exit_splash(mut commands: Commands) {
 }
 
 fn countdown(mut next: ResMut<NextState<Screen>>, time: Res<Time>, mut timer: ResMut<SplashTime>) {
-    if timer.tick(time.delta()).finished() {
+    if timer.tick(time.delta()).is_finished() {
         next.set(Screen::Gameplay);
     }
 }

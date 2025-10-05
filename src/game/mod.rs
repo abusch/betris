@@ -1,18 +1,10 @@
-use std::time::Duration;
-
 use bevy::{
-    color::palettes::css::{BLACK, GRAY, WHITE},
-    ecs::component::{Mutable, StorageType},
+    color::palettes::css::{BLACK, GRAY},
+    ecs::{lifecycle::HookContext, world::DeferredWorld},
     prelude::*,
 };
-use bevy_enhanced_input::{events::ActionEvents, prelude::Actions};
-use bevy_tween::{
-    bevy_time_runner::TimeRunnerEnded,
-    prelude::{AnimationBuilderExt, EaseKind},
-    tween::TargetComponent,
-};
-use bevy_vector_shapes::shapes::ShapeFill;
-use input::{HardDrop, InGame, Left, Right, RotateLeft, RotateRight, SoftDrop};
+use bevy_enhanced_input::prelude::*;
+use input::{HardDrop, Left, Right, RotateLeft, RotateRight, SoftDrop};
 use score::ScoreEvent;
 use spawners::{
     INITIAL_POS, Positioned, SpawnMatrix, SpawnNextZone, SpawnPiece,
@@ -26,7 +18,6 @@ use crate::{
     AppSystems,
     model::{Bag, Tetrimino},
     screen::Screen,
-    tweening::shape_color_to,
 };
 
 #[cfg(feature = "dev")]
@@ -68,13 +59,6 @@ pub fn plugin(app: &mut App) {
         )
         .add_systems(OnEnter(Phase::Lock), handle_lock)
         .add_systems(OnEnter(Phase::Pattern), detect_patterns)
-        .add_systems(OnEnter(Phase::Animate), animate)
-        .add_systems(
-            Update,
-            animate_done
-                .in_set(AppSystems::Update)
-                .run_if(in_state(Phase::Animate)),
-        )
         .add_systems(OnEnter(Phase::Eliminate), eliminate)
         .add_systems(OnExit(Phase::Eliminate), update_blocks_transform)
         .add_systems(OnExit(Screen::Gameplay), game_cleanup);
@@ -105,35 +89,31 @@ pub struct GameState {
 }
 
 /// A static block that has been committed to the matrix.
+#[derive(Component)]
+#[component(on_add = on_block_add)]
 pub struct Block;
 
-impl Component for Block {
-    type Mutability = Mutable;
-    fn register_component_hooks(hooks: &mut bevy::ecs::component::ComponentHooks) {
-        hooks.on_add(|mut world, ctx| {
-            let pos = world
-                .entity(ctx.entity)
-                .get::<Positioned>()
-                .copied()
-                .expect("Block component without Pos!");
-            info!("Block was added at {}", *pos);
-            let mut state = world.resource_mut::<GameState>();
-            state.matrix.insert(*pos, ctx.entity);
-        });
-    }
-
-    const STORAGE_TYPE: StorageType = StorageType::Table;
+fn on_block_add(mut world: DeferredWorld, ctx: HookContext) {
+    let pos = world
+        .entity(ctx.entity)
+        .get::<Positioned>()
+        .copied()
+        .expect("Block component without Pos!");
+    info!("Block was added at {}", *pos);
+    let mut state = world.resource_mut::<GameState>();
+    state.matrix.insert(*pos, ctx.entity);
 }
 
 fn game_setup(
     mut commands: Commands,
     mut next_phase: ResMut<NextState<Phase>>,
-    mut event_writer: EventWriter<ScoreEvent>,
+    mut event_writer: MessageWriter<ScoreEvent>,
 ) {
     commands.init_resource::<Timers>();
 
     commands.queue(SpawnMatrix);
     commands.queue(SpawnNextZone);
+    input::bindings(&mut commands);
 
     event_writer.write(ScoreEvent::LevelStart(1));
 
@@ -199,11 +179,15 @@ fn tick_timers(mut timers: ResMut<Timers>, time: Res<Time>) {
 fn handle_input(
     mut current_piece_query: Query<(&mut Tetrimino, &mut Positioned), With<CurrentPiece>>,
     state: Res<GameState>,
-    action_state: Single<&Actions<InGame>>,
+    left: Single<&ActionEvents, With<Action<Left>>>,
+    right: Single<&ActionEvents, With<Action<Right>>>,
+    rotate_left: Single<&ActionEvents, With<Action<RotateLeft>>>,
+    rotate_right: Single<&ActionEvents, With<Action<RotateRight>>>,
+    hard_drop: Single<&ActionEvents, With<Action<HardDrop>>>,
+    soft_drop: Single<&ActionEvents, With<Action<SoftDrop>>>,
     mut timers: ResMut<Timers>,
     mut next_phase: ResMut<NextState<Phase>>,
 ) -> Result {
-    let action_state = action_state.into_inner();
     let (mut current_piece, mut pos) = current_piece_query.single_mut()?;
 
     // If lock timer has expired -> move to LOCK state
@@ -212,7 +196,7 @@ fn handle_input(
         return Ok(());
     }
 
-    if timers.lock.paused() {
+    if timers.lock.is_paused() {
         for _ in 0..timers.fall.times_finished_this_tick() {
             let down_pos = pos.down();
             if state.matrix.is_pos_valid(&current_piece, &down_pos) {
@@ -221,29 +205,28 @@ fn handle_input(
         }
     }
 
-    if action_state.action::<RotateLeft>().events() == ActionEvents::STARTED | ActionEvents::FIRED {
+    if rotate_left.contains(ActionEvents::STARTED) {
         let rotated = current_piece.rotated_ccw();
         if state.matrix.is_pos_valid(&rotated, &pos) {
             *current_piece = rotated;
         }
     }
-    if action_state.action::<RotateRight>().events() == ActionEvents::STARTED | ActionEvents::FIRED
-    {
+    if rotate_right.contains(ActionEvents::STARTED) {
         let rotated = current_piece.rotated_cw();
         if state.matrix.is_pos_valid(&rotated, &pos) {
             *current_piece = rotated;
         }
     }
 
-    if action_state.action::<Left>().events() == ActionEvents::STARTED | ActionEvents::FIRED {
+    if left.contains(ActionEvents::STARTED) {
         let left_pos = pos.left();
         if current_piece.min_x(&left_pos) >= 0
             && state.matrix.is_pos_valid(&current_piece, &left_pos)
         {
             **pos = left_pos;
         }
-    } else if action_state.action::<Right>().events() == ActionEvents::STARTED | ActionEvents::FIRED
-    {
+    } else if right.contains(ActionEvents::STARTED) {
+        // {
         let right_pos = pos.right();
         if current_piece.max_x(&right_pos) <= 9
             && state.matrix.is_pos_valid(&current_piece, &right_pos)
@@ -251,20 +234,20 @@ fn handle_input(
             **pos = right_pos;
         }
     }
-    if action_state.action::<HardDrop>().events() == ActionEvents::STARTED | ActionEvents::FIRED {
+    if hard_drop.contains(ActionEvents::STARTED) {
         **pos = state.matrix.lowest_valid_pos(&current_piece, &pos);
         next_phase.set(Phase::Lock);
         return Ok(());
     }
-    if action_state.action::<SoftDrop>().events() == ActionEvents::STARTED | ActionEvents::FIRED {
+    if soft_drop.contains(ActionEvents::STARTED | ActionEvents::FIRED) {
         timers.fall.soft_drop();
-    } else if action_state.action::<SoftDrop>().events() == ActionEvents::COMPLETED {
+    } else if soft_drop.contains(ActionEvents::COMPLETED) {
         timers.fall.normal_drop();
     }
 
     if state.matrix.is_on_surface(&current_piece, &pos) {
         // If we just landed on a surface, kick off the lock timer
-        if timers.lock.paused() {
+        if timers.lock.is_paused() {
             info!("Starting lock timer!");
             timers.fall.pause();
             timers.lock.reset();
@@ -272,7 +255,7 @@ fn handle_input(
         }
     } else {
         // If we were in lock phase but are free to fall, go back to "falling" phase
-        if !timers.lock.paused() {
+        if !timers.lock.is_paused() {
             timers.lock.pause();
             timers.fall.normal_drop();
             timers.fall.unpause();
@@ -340,7 +323,6 @@ fn handle_lock(
             .entity(state.matrix.root_entity)
             .with_children(|children| {
                 for block_pos in piece.block_positions(piece_pos) {
-                    // children.spawn(BlockBundle::new(block_pos));
                     children
                         .spawn((Block, Positioned(block_pos)))
                         .queue(SpawnMino(block_pos, Some(GRAY.into())));
@@ -367,50 +349,10 @@ fn detect_patterns(
     }
 
     if has_deletions {
-        next_phase.set(Phase::Animate);
+        next_phase.set(Phase::Eliminate);
     } else {
         // if there is nothing to delete, go straight back to the Generation phase
         next_phase.set(Phase::Generation);
-    }
-}
-
-#[derive(Component)]
-pub struct Animator;
-
-fn animate(
-    mut commands: Commands,
-    to_delete: Query<(Entity, &Children), With<ToDelete>>,
-    to_animate: Query<Entity, With<ShapeFill>>,
-) {
-    info!("Start animation");
-    let mut target = Vec::new();
-    for (_, children) in to_delete.iter() {
-        for child in children {
-            if let Ok(z) = to_animate.get(*child) {
-                target.push(z);
-            }
-        }
-    }
-    if target.is_empty() {
-        warn!("No ShapeFill found!");
-    }
-    let entities = TargetComponent::from(target);
-
-    commands.spawn(Animator).animation().insert_tween_here(
-        Duration::from_secs_f32(0.3),
-        EaseKind::QuadraticOut,
-        entities
-            .state(WHITE.with_alpha(1.0).into())
-            .with(shape_color_to(Color::srgb(5.0, 5.0, 5.0))),
-    );
-}
-
-fn animate_done(mut next_phase: ResMut<NextState<Phase>>, mut ended: EventReader<TimeRunnerEnded>) {
-    for ended in ended.read() {
-        if ended.is_completed() {
-            info!("Animation completed! Moving to Eliminate phase");
-            next_phase.set(Phase::Eliminate);
-        }
     }
 }
 
@@ -419,7 +361,7 @@ fn eliminate(
     to_delete: Query<Entity, With<ToDelete>>,
     mut state: ResMut<GameState>,
     mut next_phase: ResMut<NextState<Phase>>,
-    mut event_writer: EventWriter<ScoreEvent>,
+    mut event_writer: MessageWriter<ScoreEvent>,
 ) {
     // Despawn entities that were deleted
     for e in to_delete.iter() {
