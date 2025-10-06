@@ -26,8 +26,8 @@ fn setup(mut commands: Commands, assets: Res<AssetServer>) {
             TextLayout::new_with_no_wrap(),
             Node {
                 position_type: PositionType::Absolute,
-                top: Val::Px(5.0),
-                left: Val::Px(5.0),
+                top: px(5.0),
+                left: px(5.0),
                 ..default()
             },
         ))

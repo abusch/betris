@@ -4,7 +4,6 @@ use crate::{AppSystems, screen::Screen};
 
 pub fn plugin(app: &mut App) {
     app.init_resource::<Score>()
-        .register_type::<Score>()
         .add_message::<ScoreEvent>()
         .add_systems(OnEnter(Screen::Gameplay), setup)
         .add_systems(
@@ -20,6 +19,7 @@ pub fn plugin(app: &mut App) {
 pub struct Score {
     level: u64,
     score: u64,
+    lines_cleared: u64,
 }
 
 impl Score {
@@ -33,11 +33,23 @@ impl Score {
             ScoreEvent::LevelStart(level) => {
                 self.level = *level as u64;
                 self.score = 0;
+                self.lines_cleared = 0;
             }
-            ScoreEvent::Single => self.add_with_mult(100),
-            ScoreEvent::Double => self.add_with_mult(300),
-            ScoreEvent::Triple => self.add_with_mult(500),
-            ScoreEvent::Tetris => self.add_with_mult(800),
+            ScoreEvent::Single => {
+                self.add_with_mult(100);
+                self.lines_cleared += 1;
+            }
+            ScoreEvent::Double => {
+                self.add_with_mult(300);
+                self.lines_cleared += 2;
+            }
+            ScoreEvent::Triple => {
+                self.add_with_mult(500);
+            }
+            ScoreEvent::Tetris => {
+                self.add_with_mult(800);
+                self.lines_cleared += 4;
+            }
             ScoreEvent::MiniTSpin => self.add_with_mult(100),
             ScoreEvent::MiniTSpinSingle => self.add_with_mult(200),
             ScoreEvent::TSpin => self.add_with_mult(400),

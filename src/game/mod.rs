@@ -84,6 +84,8 @@ pub enum Phase {
 pub struct GameState {
     pub matrix: Matrix,
     pub bag: Bag,
+    pub is_soft_dropping: bool,
+    pub lines_soft_dropped: u8,
 }
 
 /// A static block that has been committed to the matrix.
@@ -176,7 +178,7 @@ fn tick_timers(mut timers: ResMut<Timers>, time: Res<Time>) {
 
 fn handle_input(
     mut current_piece_query: Query<(&mut Tetrimino, &mut Positioned), With<CurrentPiece>>,
-    state: Res<GameState>,
+    mut state: ResMut<GameState>,
     left: Single<&ActionEvents, With<Action<Left>>>,
     right: Single<&ActionEvents, With<Action<Right>>>,
     rotate_left: Single<&ActionEvents, With<Action<RotateLeft>>>,
@@ -185,6 +187,7 @@ fn handle_input(
     soft_drop: Single<&ActionEvents, With<Action<SoftDrop>>>,
     mut timers: ResMut<Timers>,
     mut next_phase: ResMut<NextState<Phase>>,
+    mut score_messages: MessageWriter<ScoreEvent>,
 ) -> Result {
     let (mut current_piece, mut pos) = current_piece_query.single_mut()?;
 
@@ -198,6 +201,9 @@ fn handle_input(
         for _ in 0..timers.fall.times_finished_this_tick() {
             let down_pos = pos.down();
             if state.matrix.is_pos_valid(&current_piece, &down_pos) {
+                if state.is_soft_dropping {
+                    state.lines_soft_dropped += 1;
+                }
                 **pos = down_pos;
             }
         }
@@ -233,13 +239,23 @@ fn handle_input(
         }
     }
     if hard_drop.contains(ActionEvents::FIRED) {
+        let previous_pos = **pos;
         **pos = state.matrix.lowest_valid_pos(&current_piece, &pos);
+        let n = (previous_pos.y - pos.y) as u8;
+        score_messages.write(ScoreEvent::HardDrop(n));
         next_phase.set(Phase::Lock);
         return Ok(());
     }
     if soft_drop.contains(ActionEvents::STARTED) {
+        state.is_soft_dropping = true;
+        state.lines_soft_dropped = 0;
         timers.fall.soft_drop();
     } else if soft_drop.contains(ActionEvents::COMPLETED) {
+        state.is_soft_dropping = false;
+        if state.lines_soft_dropped > 0 {
+            score_messages.write(ScoreEvent::SoftDrop(state.lines_soft_dropped));
+            state.lines_soft_dropped = 0;
+        }
         timers.fall.normal_drop();
     }
 
