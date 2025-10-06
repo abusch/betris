@@ -35,9 +35,7 @@ pub const SCALE: f32 = 20.0;
 
 pub fn plugin(app: &mut App) {
     app.init_state::<Phase>()
-        .register_type::<Phase>()
         .init_resource::<GameState>()
-        .register_type::<GameState>()
         .insert_resource(ClearColor(BLACK.into()))
         .add_systems(OnEnter(Screen::Gameplay), game_setup)
         .add_systems(
@@ -205,27 +203,27 @@ fn handle_input(
         }
     }
 
-    if rotate_left.contains(ActionEvents::STARTED) {
+    if rotate_left.contains(ActionEvents::FIRED) {
         let rotated = current_piece.rotated_ccw();
         if state.matrix.is_pos_valid(&rotated, &pos) {
             *current_piece = rotated;
         }
     }
-    if rotate_right.contains(ActionEvents::STARTED) {
+    if rotate_right.contains(ActionEvents::FIRED) {
         let rotated = current_piece.rotated_cw();
         if state.matrix.is_pos_valid(&rotated, &pos) {
             *current_piece = rotated;
         }
     }
 
-    if left.contains(ActionEvents::STARTED) {
+    if left.contains(ActionEvents::FIRED) {
         let left_pos = pos.left();
         if current_piece.min_x(&left_pos) >= 0
             && state.matrix.is_pos_valid(&current_piece, &left_pos)
         {
             **pos = left_pos;
         }
-    } else if right.contains(ActionEvents::STARTED) {
+    } else if right.contains(ActionEvents::FIRED) {
         // {
         let right_pos = pos.right();
         if current_piece.max_x(&right_pos) <= 9
@@ -234,12 +232,12 @@ fn handle_input(
             **pos = right_pos;
         }
     }
-    if hard_drop.contains(ActionEvents::STARTED) {
+    if hard_drop.contains(ActionEvents::FIRED) {
         **pos = state.matrix.lowest_valid_pos(&current_piece, &pos);
         next_phase.set(Phase::Lock);
         return Ok(());
     }
-    if soft_drop.contains(ActionEvents::STARTED | ActionEvents::FIRED) {
+    if soft_drop.contains(ActionEvents::STARTED) {
         timers.fall.soft_drop();
     } else if soft_drop.contains(ActionEvents::COMPLETED) {
         timers.fall.normal_drop();
