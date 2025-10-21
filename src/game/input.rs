@@ -94,35 +94,35 @@ impl InputCondition for AutoRepeat {
         _actions: &ActionsQuery,
         time: &ContextTime,
         value: ActionValue,
-    ) -> ActionState {
+    ) -> TriggerState {
         let previously_actuated = self.actuated;
         self.actuated = value.is_actuated(self.actuation);
 
         if self.actuated {
             if !previously_actuated {
                 // First time fire
-                ActionState::Fired
+                TriggerState::Fired
             } else if self.is_repeating {
                 self.repeat_timer.tick(time.delta_kind(self.time_kind));
                 if self.repeat_timer.just_finished() {
-                    ActionState::Fired
+                    TriggerState::Fired
                 } else {
-                    ActionState::Ongoing
+                    TriggerState::Ongoing
                 }
             } else {
                 self.initial_timer.tick(time.delta_kind(self.time_kind));
                 if self.initial_timer.is_finished() {
                     // Start auto-repeat
                     self.is_repeating = true;
-                    ActionState::Fired
+                    TriggerState::Fired
                 } else {
-                    ActionState::Ongoing
+                    TriggerState::Ongoing
                 }
             }
         } else {
             self.initial_timer.reset();
             self.repeat_timer.reset();
-            ActionState::None
+            TriggerState::None
         }
     }
 }

@@ -209,27 +209,27 @@ fn handle_input(
         }
     }
 
-    if rotate_left.contains(ActionEvents::FIRED) {
+    if rotate_left.contains(ActionEvents::FIRE) {
         let rotated = current_piece.rotated_ccw();
         if state.matrix.is_pos_valid(&rotated, &pos) {
             *current_piece = rotated;
         }
     }
-    if rotate_right.contains(ActionEvents::FIRED) {
+    if rotate_right.contains(ActionEvents::FIRE) {
         let rotated = current_piece.rotated_cw();
         if state.matrix.is_pos_valid(&rotated, &pos) {
             *current_piece = rotated;
         }
     }
 
-    if left.contains(ActionEvents::FIRED) {
+    if left.contains(ActionEvents::FIRE) {
         let left_pos = pos.left();
         if current_piece.min_x(&left_pos) >= 0
             && state.matrix.is_pos_valid(&current_piece, &left_pos)
         {
             **pos = left_pos;
         }
-    } else if right.contains(ActionEvents::FIRED) {
+    } else if right.contains(ActionEvents::FIRE) {
         // {
         let right_pos = pos.right();
         if current_piece.max_x(&right_pos) <= 9
@@ -238,7 +238,7 @@ fn handle_input(
             **pos = right_pos;
         }
     }
-    if hard_drop.contains(ActionEvents::FIRED) {
+    if hard_drop.contains(ActionEvents::FIRE) {
         let previous_pos = **pos;
         **pos = state.matrix.lowest_valid_pos(&current_piece, &pos);
         let n = (previous_pos.y - pos.y) as u8;
@@ -246,11 +246,11 @@ fn handle_input(
         next_phase.set(Phase::Lock);
         return Ok(());
     }
-    if soft_drop.contains(ActionEvents::STARTED) {
+    if soft_drop.contains(ActionEvents::START) {
         state.is_soft_dropping = true;
         state.lines_soft_dropped = 0;
         timers.fall.soft_drop();
-    } else if soft_drop.contains(ActionEvents::COMPLETED) {
+    } else if soft_drop.contains(ActionEvents::COMPLETE) {
         state.is_soft_dropping = false;
         if state.lines_soft_dropped > 0 {
             score_messages.write(ScoreEvent::SoftDrop(state.lines_soft_dropped));
