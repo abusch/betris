@@ -15,13 +15,15 @@ pub fn bindings(commands: &mut Commands) {
     commands.spawn((
         InGame,
         actions!(InGame[
-            (Action::<Left>::new(), AutoRepeat::new(0.3, 0.05), bindings![KeyCode::ArrowLeft],),
-            (Action::<Right>::new(), AutoRepeat::new(0.3, 0.05), bindings![KeyCode::ArrowRight],),
-            (Action::<RotateLeft>::new(), Press::default(), bindings![KeyCode::KeyZ, KeyCode::ArrowUp],),
-            (Action::<RotateRight>::new(), Press::default(), bindings![KeyCode::KeyX],),
-            (Action::<SoftDrop>::new(), Down::default(), bindings![KeyCode::ArrowDown],),
-            (Action::<HardDrop>::new(), Press::default(), bindings![KeyCode::Space],),
-            (Action::<Pause>::new(), Press::default(), bindings![KeyCode::KeyP],),
+            (Action::<Left>::new(), AutoRepeat::new(0.3, 0.05), bindings![KeyCode::ArrowLeft, GamepadButton::DPadLeft],),
+            (Action::<Right>::new(), AutoRepeat::new(0.3, 0.05), bindings![KeyCode::ArrowRight, GamepadButton::DPadRight],),
+            // (Action::<Left>::new(), AutoRepeat::new(0.3, 0.05), bindings![ GamepadButton::LeftTrigger],),
+            // (Action::<Right>::new(), AutoRepeat::new(0.3, 0.05), bindings![ GamepadButton::RightTrigger],),
+            (Action::<RotateLeft>::new(), Press::default(), bindings![KeyCode::KeyZ, GamepadButton::South],),
+            (Action::<RotateRight>::new(), Press::default(), bindings![KeyCode::KeyX, GamepadButton::East],),
+            (Action::<SoftDrop>::new(), Down::default(), bindings![KeyCode::ArrowDown, GamepadButton::DPadDown],),
+            (Action::<HardDrop>::new(), Press::default(), bindings![KeyCode::Space, GamepadButton::DPadUp],),
+            (Action::<Pause>::new(), Press::default(), bindings![KeyCode::KeyP, GamepadButton::Select],),
         ]),
     ));
 }
@@ -111,7 +113,7 @@ impl InputCondition for AutoRepeat {
                 }
             } else {
                 self.initial_timer.tick(time.delta_kind(self.time_kind));
-                if self.initial_timer.is_finished() {
+                if self.initial_timer.just_finished() {
                     // Start auto-repeat
                     self.is_repeating = true;
                     TriggerState::Fired
@@ -122,6 +124,7 @@ impl InputCondition for AutoRepeat {
         } else {
             self.initial_timer.reset();
             self.repeat_timer.reset();
+            self.is_repeating = false;
             TriggerState::None
         }
     }
