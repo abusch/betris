@@ -1,4 +1,5 @@
 use bevy::{
+    audio::PlaybackMode,
     color::palettes::css::{BLACK, GRAY},
     ecs::{lifecycle::HookContext, world::DeferredWorld},
     prelude::*,
@@ -37,7 +38,10 @@ pub fn plugin(app: &mut App) {
     app.init_state::<Phase>()
         .init_resource::<GameState>()
         .insert_resource(ClearColor(BLACK.into()))
-        .add_systems(OnEnter(Screen::Gameplay), game_setup)
+        .add_systems(
+            OnEnter(Screen::Gameplay),
+            (load_resources, game_setup).chain(),
+        )
         .add_systems(
             OnEnter(Phase::Generation),
             (clean_up_pieces, generate_piece).chain(),
@@ -65,6 +69,11 @@ pub fn plugin(app: &mut App) {
 
     #[cfg(feature = "dev")]
     app.add_plugins(debug::plugin);
+}
+
+#[derive(Resource)]
+pub struct GameAssets {
+    impact: Handle<AudioSource>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Hash, States, Reflect, strum::Display)]
@@ -102,6 +111,12 @@ fn on_block_add(mut world: DeferredWorld, ctx: HookContext) {
     info!("Block was added at {}", *pos);
     let mut state = world.resource_mut::<GameState>();
     state.matrix.insert(*pos, ctx.entity);
+}
+
+fn load_resources(asset_server: Res<AssetServer>, mut commands: Commands) {
+    commands.insert_resource(GameAssets {
+        impact: asset_server.load("audio/impactPlank_medium_004.ogg"),
+    });
 }
 
 fn game_setup(
@@ -327,11 +342,19 @@ fn update_piece_transform(
 fn handle_lock(
     mut commands: Commands,
     state: Res<GameState>,
-    current_piece: Query<(&Positioned, &Tetrimino), With<CurrentPiece>>,
+    assets: Res<GameAssets>,
+    current_piece: Query<(Entity, &Positioned, &Tetrimino), With<CurrentPiece>>,
     mut next_phase: ResMut<NextState<Phase>>,
 ) {
-    if let Ok((piece_pos, piece)) = current_piece.single() {
+    if let Ok((entity, piece_pos, piece)) = current_piece.single() {
         info!("Locking piece");
+        commands.entity(entity).insert((
+            AudioPlayer(assets.impact.clone()),
+            PlaybackSettings {
+                mode: PlaybackMode::Remove,
+                ..default()
+            },
+        ));
 
         commands
             .entity(state.matrix.root_entity)
