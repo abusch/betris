@@ -82,7 +82,7 @@ impl AutoRepeat {
         Self {
             actuated: false,
             actuation: DEFAULT_ACTUATION,
-            time_kind: TimeKind::Virtual,
+            time_kind: TimeKind::Auto,
             initial_timer: Timer::from_seconds(initial_delay, TimerMode::Once),
             repeat_timer: Timer::from_seconds(interval, TimerMode::Repeating),
             is_repeating: false,

@@ -6,6 +6,8 @@ use crate::game::SCALE;
 pub struct SpawnNextZone;
 
 impl Command for SpawnNextZone {
+    type Out = ();
+
     fn apply(self, world: &mut World) {
         world
             .run_system_once_with(spawn, self)

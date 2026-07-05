@@ -1,6 +1,5 @@
 use bevy::{
-    core_pipeline::tonemapping::Tonemapping, post_process::bloom::Bloom, prelude::*,
-    render::view::Hdr,
+    camera::Hdr, core_pipeline::tonemapping::Tonemapping, post_process::bloom::Bloom, prelude::*,
 };
 
 #[cfg(feature = "dev")]

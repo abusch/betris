@@ -7,28 +7,13 @@ use crate::{AppSystems, screen::Screen};
 use super::SCALE;
 
 pub fn plugin(app: &mut App) {
-    app
-        // .add_perf_ui_simple_entry::<PerfUiPhase>()
-        // .add_systems(
-        //     Update,
-        //     setup
-        //         .run_if(in_state(Screen::Gameplay))
-        //         .in_set(AppSet::Update),
-        // )
-        .add_systems(
-            Update,
-            (debug_grid)
-                .run_if(in_state(Screen::Gameplay).and(input_toggle_active(false, KeyCode::KeyG)))
-                .in_set(AppSystems::Update),
-        );
+    app.add_systems(
+        Update,
+        (debug_grid)
+            .run_if(in_state(Screen::Gameplay).and_then(input_toggle_active(false, KeyCode::KeyG)))
+            .in_set(AppSystems::Update),
+    );
 }
-
-// fn setup(mut commands: Commands, root: Query<Entity, Added<PerfUiRoot>>) {
-//     if let Ok(root) = root.get_single() {
-//         info!("Adding phase debug perf ui entry");
-//         commands.entity(root).insert(PerfUiPhase);
-//     }
-// }
 
 fn debug_grid(mut gizmos: Gizmos) {
     gizmos
@@ -40,27 +25,3 @@ fn debug_grid(mut gizmos: Gizmos) {
         )
         .outer_edges();
 }
-
-// #[derive(Component)]
-// pub struct PerfUiPhase;
-//
-// impl PerfUiEntry for PerfUiPhase {
-//     type SystemParam = Option<SRes<State<Phase>>>;
-//
-//     type Value = String;
-//
-//     fn label(&self) -> &str {
-//         "Phase"
-//     }
-//
-//     fn sort_key(&self) -> i32 {
-//         -1
-//     }
-//
-//     fn update_value(
-//         &self,
-//         state: &mut <Self::SystemParam as bevy::ecs::system::SystemParam>::Item<'_, '_>,
-//     ) -> Option<Self::Value> {
-//         state.as_ref().map(|phase| phase.to_string())
-//     }
-// }

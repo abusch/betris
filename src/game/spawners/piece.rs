@@ -43,6 +43,8 @@ impl SpawnPiece {
 }
 
 impl Command for SpawnPiece {
+    type Out = ();
+
     fn apply(self, world: &mut World) {
         world
             .run_system_once_with(spawn, self)
@@ -104,6 +106,8 @@ pub struct Mino;
 pub struct SpawnMino(pub Pos, pub Option<Color>);
 
 impl EntityCommand for SpawnMino {
+    type Out = ();
+
     fn apply(self, mut entity_world: EntityWorldMut) {
         let entity = entity_world.id();
         entity_world

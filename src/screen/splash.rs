@@ -37,8 +37,8 @@ fn enter_splash(mut commands: Commands, assets: Res<AssetServer>) {
         .spawn((
             Text2d("Betris".into()),
             TextFont {
-                font: font_handle,
-                font_size: 78.0,
+                font: font_handle.into(),
+                font_size: FontSize::Px(78.0),
                 ..default()
             },
             TextColor(Color::WHITE),

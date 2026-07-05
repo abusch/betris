@@ -1,4 +1,4 @@
-use bevy::prelude::*;
+use bevy::{prelude::*, text::FontSourceTemplate};
 
 use crate::screen::Screen;
 
@@ -9,39 +9,34 @@ pub fn plugin(app: &mut App) {
         .add_systems(Update, update);
 }
 
-fn setup(mut commands: Commands, assets: Res<AssetServer>) {
-    let text_font = TextFont {
-        font: assets.load("fonts/BungeeSpice-Regular.ttf"),
-        font_size: 40.0,
-        ..default()
-    };
-    let text_color = TextColor(Color::WHITE);
-
-    commands
-        .spawn((
-            Name::new("Score"),
-            Text::new("Score: "),
-            text_font.clone(),
-            text_color,
-            TextLayout::new_with_no_wrap(),
-            Node {
-                position_type: PositionType::Absolute,
-                top: px(5.0),
-                left: px(5.0),
-                ..default()
-            },
-        ))
-        .with_children(|children| {
-            children.spawn((
-                TextSpan("".into()),
-                text_font.clone(),
-                text_color,
-                ScoreText,
-            ));
-        });
+fn setup(mut commands: Commands) {
+    let font_name = "fonts/BungeeSpice-Regular.ttf";
+    commands.spawn_scene(bsn! {
+        #Score
+        Text("Score: ")
+        TextLayout::no_wrap()
+        TextFont {
+            font: FontSourceTemplate::Handle(font_name),
+            font_size: FontSize::Px(40.0)
+        }
+        TextColor(Color::WHITE)
+        Node {
+            position_type: PositionType::Absolute,
+            top: px(5.0),
+            left: px(5.0),
+        }
+        Children [(
+            TextSpan("")
+            ScoreText
+            TextFont {
+                font: FontSourceTemplate::Handle(font_name),
+                font_size: FontSize::Px(40.0)
+            }
+        )]
+    });
 }
 
-#[derive(Component)]
+#[derive(Default, Copy, Clone, Component)]
 struct ScoreText;
 
 fn update(score: Res<Score>, mut text: Query<&mut TextSpan, With<ScoreText>>) {

@@ -7,6 +7,8 @@ use crate::game::{GameState, MATRIX_WIDTH, SCALE, input::InGame};
 pub struct SpawnMatrix;
 
 impl Command for SpawnMatrix {
+    type Out = ();
+
     fn apply(self, world: &mut World) {
         world
             .run_system_once_with(spawn, self)

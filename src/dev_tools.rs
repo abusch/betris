@@ -1,6 +1,6 @@
 use bevy::{
     dev_tools::{
-        fps_overlay::{FpsOverlayConfig, FpsOverlayPlugin, FrameTimeGraphConfig},
+        diagnostics_overlay::{DiagnosticsOverlay, DiagnosticsOverlayPlugin},
         states::log_transitions,
     },
     diagnostic::{
@@ -29,24 +29,7 @@ pub fn plugin(app: &mut App) {
         .add_plugins((
             EguiPlugin::default(),
             ResourceInspectorPlugin::<GameState>::default().run_if(is_debug),
-            FpsOverlayPlugin {
-                config: FpsOverlayConfig {
-                    enabled: false,
-                    text_config: TextFont {
-                        // Here we define size of our overlay
-                        font_size: 16.0,
-                        ..default()
-                    },
-                    frame_time_graph_config: FrameTimeGraphConfig {
-                        enabled: false,
-                        // The minimum acceptable fps
-                        min_fps: 30.0,
-                        // The target fps
-                        target_fps: 60.0,
-                    },
-                    ..default()
-                },
-            },
+            DiagnosticsOverlayPlugin,
         ))
         .add_systems(
             Update,
@@ -63,11 +46,20 @@ fn is_debug(debug_info: Res<DebugInfo>) -> bool {
     debug_info.0
 }
 
-fn toggle_debug(mut debug_info: ResMut<DebugInfo>, mut fps_config: ResMut<FpsOverlayConfig>) {
+fn toggle_debug(
+    mut commands: Commands,
+    mut debug_info: ResMut<DebugInfo>,
+    overlays: Query<Entity, With<DiagnosticsOverlay>>,
+) {
     debug_info.0 = !debug_info.0;
 
-    fps_config.enabled = debug_info.0;
-    fps_config.frame_time_graph_config.enabled = debug_info.0;
+    if debug_info.0 {
+        commands.spawn(DiagnosticsOverlay::fps());
+    } else {
+        for o in overlays {
+            commands.entity(o).despawn();
+        }
+    }
 }
 
 fn close_on_esc(
