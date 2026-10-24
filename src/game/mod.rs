@@ -42,7 +42,7 @@ pub fn plugin(app: &mut App) {
             (load_resources, game_setup).chain(),
         )
         // Lock down, Pattern and Eliminate take no game time, so they run back to back in the
-        // frame where the piece locks, right before the next piece is generated.
+        // frame where the piece locks.
         .add_systems(
             OnTransition {
                 exited: Phase::Falling,
@@ -50,18 +50,22 @@ pub fn plugin(app: &mut App) {
             },
             (lock_down, clear_lines).chain(),
         )
-        .add_systems(
-            OnEnter(Phase::Generation),
-            (clean_up_pieces, generate_piece).chain(),
-        )
+        .add_systems(OnEnter(Phase::Generation), start_generation_timer)
         .add_systems(OnEnter(Phase::Falling), start_fall_timer)
         .add_systems(
             Update,
             (
                 tick_timers.in_set(AppSystems::TickTimers),
-                handle_input.in_set(AppSystems::RecordInput),
+                handle_input
+                    .in_set(AppSystems::RecordInput)
+                    .run_if(in_state(Phase::Falling)),
+                (clean_up_pieces, generate_piece)
+                    .chain()
+                    .in_set(AppSystems::Update)
+                    .run_if(in_state(Phase::Generation))
+                    .run_if(generation_delay_elapsed),
             )
-                .run_if(in_state(Phase::Falling)),
+                .run_if(in_state(Screen::Gameplay)),
         )
         .add_systems(
             Update,
@@ -95,7 +99,7 @@ pub struct GameAssets {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Hash, SubStates, Reflect, strum::Display)]
 #[source(Screen = Screen::Gameplay)]
 pub enum Phase {
-    /// Spawning the next piece
+    /// Waiting to spawn the next piece
     #[default]
     Generation,
     /// The player controls the piece. This also covers the guideline's Lock phase, i.e. when the
@@ -182,9 +186,24 @@ fn generate_piece(
     Ok(())
 }
 
+fn start_generation_timer(mut timers: ResMut<Timers>) {
+    timers.generation.reset();
+}
+
+fn generation_delay_elapsed(timers: Res<Timers>) -> bool {
+    timers.generation.just_finished()
+}
+
 fn start_fall_timer(mut timers: ResMut<Timers>) {
     info!("Starting fall timer");
     timers.fall.normal_drop();
+    // The fall timer is paused while a piece is on a surface, so it is still paused if the previous
+    // piece landed before locking down
+    timers.fall.unpause();
+    // Timers keep ticking during the Generation phase, so make sure the previous piece's lock
+    // timer doesn't carry over to the new piece
+    timers.lock.reset();
+    timers.lock.pause();
 }
 
 fn tick_timers(mut timers: ResMut<Timers>, time: Res<Time>) {
@@ -464,5 +483,19 @@ mod tests {
             .copied()
             .collect();
         assert_eq!(messages, [ScoreEvent::Single]);
+    }
+
+    #[test]
+    fn new_piece_falls_even_if_previous_one_landed() {
+        let mut world = World::new();
+        let mut timers = Timers::default();
+        // The previous piece landed, which pauses the fall timer
+        timers.fall.pause();
+        world.insert_resource(timers);
+        world.spawn((CurrentPiece, Positioned(INITIAL_POS)));
+
+        world.run_system_once(start_fall_timer).unwrap();
+
+        assert!(!world.resource::<Timers>().fall.is_paused());
     }
 }

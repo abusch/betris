@@ -4,14 +4,32 @@ use bevy::prelude::*;
 
 #[derive(Default, Resource)]
 pub struct Timers {
+    pub generation: GenerationTimer,
     pub fall: FallTimer,
     pub lock: LockTimer,
 }
 
 impl Timers {
     pub fn tick(&mut self, delta: Duration) {
+        self.generation.tick(delta);
         self.fall.tick(delta);
         self.lock.tick(delta);
+    }
+}
+
+/// Delay between a piece locking down and the next one being generated
+#[derive(Deref, DerefMut)]
+pub(super) struct GenerationTimer(Timer);
+
+impl GenerationTimer {
+    pub fn new() -> Self {
+        Self(Timer::new(Duration::from_millis(200), TimerMode::Once))
+    }
+}
+
+impl Default for GenerationTimer {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
