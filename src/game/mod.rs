@@ -193,8 +193,10 @@ fn start_generation_timer(mut timers: ResMut<Timers>) {
     timers.generation.reset();
 }
 
-fn generation_delay_elapsed(timers: Res<Timers>) -> bool {
-    timers.generation.just_finished()
+/// Bevy evaluates all of a system's run conditions, so this still runs after leaving the Gameplay
+/// screen, when the timers have been removed
+fn generation_delay_elapsed(timers: Option<Res<Timers>>) -> bool {
+    timers.is_some_and(|timers| timers.generation.just_finished())
 }
 
 fn start_fall_timer(
