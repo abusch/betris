@@ -45,6 +45,7 @@ impl Score {
             }
             ScoreEvent::Triple => {
                 self.add_with_mult(500);
+                self.lines_cleared += 3;
             }
             ScoreEvent::Tetris => {
                 self.add_with_mult(800);
