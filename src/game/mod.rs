@@ -589,6 +589,38 @@ mod tests {
     }
 
     #[test]
+    fn pieces_are_generated_where_the_guideline_says() {
+        // Returns the (min x, max x, min y, max y) of the piece's cells, counting from 1 like the
+        // guideline does
+        let bounds = |kind: TetriminoKind| {
+            let cells = Tetrimino::from(kind).block_positions(&INITIAL_POS);
+            let xs = cells.iter().map(|p| p.x + 1);
+            let ys = cells.iter().map(|p| p.y + 1);
+            (
+                xs.clone().min().unwrap(),
+                xs.max().unwrap(),
+                ys.clone().min().unwrap(),
+                ys.max().unwrap(),
+            )
+        };
+
+        // Three minos wide: (4, 21) to (6, 21), on the 21st and 22nd rows
+        for kind in [
+            TetriminoKind::T,
+            TetriminoKind::L,
+            TetriminoKind::J,
+            TetriminoKind::S,
+            TetriminoKind::Z,
+        ] {
+            assert_eq!(bounds(kind), (4, 6, 21, 22), "{kind:?}");
+        }
+        // I: (4, 21) to (7, 21)
+        assert_eq!(bounds(TetriminoKind::I), (4, 7, 21, 21));
+        // O: (5, 21) to (6, 22)
+        assert_eq!(bounds(TetriminoKind::O), (5, 6, 21, 22));
+    }
+
+    #[test]
     fn new_piece_falls_even_if_previous_one_landed() {
         let mut world = World::new();
         let mut timers = Timers::default();
