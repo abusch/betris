@@ -26,7 +26,7 @@ mod matrix;
 mod score;
 pub mod spawners;
 mod timers;
-mod ui;
+pub mod ui;
 
 pub const MATRIX_WIDTH: u8 = 10;
 pub const MATRIX_HEIGHT: u8 = 40;

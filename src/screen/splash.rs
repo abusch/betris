@@ -1,6 +1,6 @@
 use bevy::prelude::*;
 
-use crate::AppSystems;
+use crate::{AppSystems, game::ui::game_font};
 
 use super::Screen;
 
@@ -18,36 +18,14 @@ pub fn plugin(app: &mut App) {
 #[derive(Resource, Deref, DerefMut)]
 struct SplashTime(Timer);
 
-fn enter_splash(mut commands: Commands, assets: Res<AssetServer>) {
-    let font_handle: Handle<Font> = assets.load("fonts/BungeeSpice-Regular.ttf");
-
-    commands
-        // .spawn(Text2dBundle {
-        //     text: Text::from_section(
-        //         "Betris",
-        //         TextStyle {
-        //             font: font_handle,
-        //             font_size: 78.0,
-        //             color: Color::WHITE,
-        //         },
-        //     )
-        //     .with_justify(JustifyText::Center),
-        //     ..default()
-        // })
-        .spawn((
-            Text2d("Betris".into()),
-            TextFont {
-                font: font_handle.into(),
-                font_size: FontSize::Px(78.0),
-                ..default()
-            },
-            TextColor(Color::WHITE),
-            TextLayout {
-                justify: Justify::Center,
-                ..default()
-            },
-        ))
-        .insert(DespawnOnExit(Screen::Splash));
+fn enter_splash(mut commands: Commands) {
+    commands.spawn_scene(bsn! {
+        DespawnOnExit<Screen>(Screen::Splash)
+        Text2d("Betris")
+        @game_font(78.0)
+        TextColor(Color::WHITE)
+        TextLayout { justify: Justify::Center }
+    });
 
     commands.insert_resource(SplashTime(Timer::from_seconds(2.0, TimerMode::Once)));
 }
