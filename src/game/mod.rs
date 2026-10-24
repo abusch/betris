@@ -1,5 +1,4 @@
 use bevy::{
-    audio::PlaybackMode,
     color::palettes::css::{BLACK, GRAY},
     ecs::{lifecycle::HookContext, world::DeferredWorld},
     prelude::*,
@@ -326,7 +325,9 @@ fn update_piece_transform(
         // If the position of the piece has changed, update its transform
         if pos.is_changed() {
             info!("Updating current piece transform");
-            *transform = pos.0.into();
+            // Preserve z so the ghost stays behind the current piece
+            let z = transform.translation.z;
+            transform.translation = Transform::from(pos.0).translation.with_z(z);
         }
         if piece.is_changed() {
             info!("Updating current piece's blocks transform");
@@ -344,17 +345,19 @@ fn handle_lock(
     state: Res<GameState>,
     assets: Res<GameAssets>,
     current_piece: Query<(Entity, &Positioned, &Tetrimino), With<CurrentPiece>>,
+    ghost_piece: Query<Entity, With<GhostPiece>>,
     mut next_phase: ResMut<NextState<Phase>>,
 ) {
     if let Ok((entity, piece_pos, piece)) = current_piece.single() {
         info!("Locking piece");
-        commands.entity(entity).insert((
+        commands.spawn((
             AudioPlayer(assets.impact.clone()),
-            PlaybackSettings {
-                mode: PlaybackMode::Remove,
-                ..default()
-            },
+            PlaybackSettings::DESPAWN,
         ));
+
+        // The piece is replaced by static blocks, so remove it right away rather than waiting for
+        // the next Generation phase, otherwise it overlaps the blocks for a few frames.
+        commands.entity(entity).despawn();
 
         commands
             .entity(state.matrix.root_entity)
@@ -365,6 +368,9 @@ fn handle_lock(
                         .queue(SpawnMino(block_pos, Some(GRAY.into())));
                 }
             });
+    }
+    for ghost in &ghost_piece {
+        commands.entity(ghost).despawn();
     }
 
     next_phase.set(Phase::Pattern);

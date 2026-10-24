@@ -56,11 +56,19 @@ fn spawn(In(config): In<SpawnPiece>, mut commands: Commands) {
     info!("Spawning piece");
     let SpawnPiece(parent, piece, pos, piece_type) = config;
 
+    // Keep the ghost behind the current piece so that the current piece is always drawn on top
+    // when they overlap
+    let z = if piece_type == PieceType::Ghost {
+        0.5
+    } else {
+        1.0
+    };
+
     // Spawn a PieceBundle as a child of the given parent entity
     commands.entity(parent).with_children(|children| {
         let mut builder = children.spawn((
             Piece,
-            Transform::from_xyz(pos.x as f32, pos.y as f32, 1.0),
+            Transform::from_xyz(pos.x as f32, pos.y as f32, z),
             piece,
             Positioned(pos),
         ));
