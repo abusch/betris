@@ -4,7 +4,7 @@ use bevy::{
     prelude::*,
 };
 use bevy_enhanced_input::prelude::*;
-use input::{HardDrop, Left, Right, RotateLeft, RotateRight, SoftDrop};
+use input::{HardDrop, Left, Restart, Right, RotateLeft, RotateRight, SoftDrop};
 use score::ScoreEvent;
 use spawners::{
     INITIAL_POS, Positioned, SpawnMatrix, SpawnNextZone, SpawnPiece,
@@ -32,6 +32,8 @@ mod ui;
 pub const MATRIX_WIDTH: u8 = 10;
 pub const MATRIX_HEIGHT: u8 = 40;
 pub const SCALE: f32 = 20.0;
+/// The first row above the Skyline, i.e. in the Buffer Zone
+pub const SKYLINE: i8 = 20;
 
 pub fn plugin(app: &mut App) {
     app.add_sub_state::<Phase>()
@@ -59,6 +61,9 @@ pub fn plugin(app: &mut App) {
                 handle_input
                     .in_set(AppSystems::RecordInput)
                     .run_if(in_state(Phase::Falling)),
+                restart
+                    .in_set(AppSystems::RecordInput)
+                    .run_if(in_state(Phase::GameOver)),
                 (clean_up_pieces, generate_piece)
                     .chain()
                     .in_set(AppSystems::Update)
@@ -105,6 +110,9 @@ pub enum Phase {
     /// The player controls the piece. This also covers the guideline's Lock phase, i.e. when the
     /// piece is on a surface and the lock down timer is running.
     Falling,
+    /// The piece locked down entirely above the Skyline (Lock out), or the next piece couldn't be
+    /// generated (Block out)
+    GameOver,
 }
 
 #[derive(Default, Resource, Reflect)]
@@ -169,6 +177,12 @@ fn generate_piece(
     let next_piece: Tetrimino = state.bag.peek_next().into();
 
     info!("Generating new tetrimino {:?}", tetrimino.kind);
+
+    if !state.matrix.is_pos_valid(&tetrimino, &INITIAL_POS) {
+        info!("Block out!");
+        next_phase.set(Phase::GameOver);
+        return Ok(());
+    }
 
     // The piece drops one row as soon as it is generated, unless something is in its way
     let mut pos = INITIAL_POS;
@@ -367,6 +381,7 @@ fn lock_down(
     assets: Res<GameAssets>,
     current_piece: Query<(Entity, &Positioned, &Tetrimino), With<CurrentPiece>>,
     ghost_piece: Query<Entity, With<GhostPiece>>,
+    mut next_phase: ResMut<NextState<Phase>>,
 ) -> Result {
     let (entity, piece_pos, piece) = current_piece.single()?;
     info!("Locking piece");
@@ -390,7 +405,36 @@ fn lock_down(
         commands.entity(ghost).despawn();
     }
 
+    if piece.min_y(piece_pos) >= SKYLINE {
+        info!("Lock out!");
+        next_phase.set(Phase::GameOver);
+    }
+
     Ok(())
+}
+
+/// Wait for the player to start a new game.
+fn restart(
+    mut commands: Commands,
+    restart: Single<&ActionEvents, With<Action<Restart>>>,
+    blocks: Query<Entity, With<Block>>,
+    mut state: ResMut<GameState>,
+    mut next_phase: ResMut<NextState<Phase>>,
+    mut score_messages: MessageWriter<ScoreEvent>,
+) {
+    if !restart.contains(ActionEvents::FIRE) {
+        return;
+    }
+
+    for block in &blocks {
+        commands.entity(block).despawn();
+    }
+    let root_entity = state.matrix.root_entity;
+    *state = GameState::default();
+    state.matrix.root_entity = root_entity;
+
+    score_messages.write(ScoreEvent::LevelStart(1));
+    next_phase.set(Phase::Generation);
 }
 
 /// Pattern and Eliminate phases: remove full lines and collapse the blocks above them.
@@ -452,7 +496,7 @@ mod tests {
     use bevy::ecs::{message::Messages, system::RunSystemOnce};
 
     use super::*;
-    use crate::model::Pos;
+    use crate::model::{Pos, TetriminoKind};
 
     #[test]
     fn clear_lines_removes_full_line_and_collapses_blocks_above() {
@@ -483,6 +527,65 @@ mod tests {
             .copied()
             .collect();
         assert_eq!(messages, [ScoreEvent::Single]);
+    }
+
+    fn is_game_over(world: &World) -> bool {
+        matches!(
+            world.resource::<NextState<Phase>>(),
+            NextState::Pending(Phase::GameOver)
+        )
+    }
+
+    fn lock_piece(tetrimino: Tetrimino, pos: Pos) -> World {
+        let mut world = World::new();
+        world.init_resource::<GameState>();
+        world.init_resource::<NextState<Phase>>();
+        world.insert_resource(GameAssets {
+            impact: Handle::default(),
+        });
+        let root = world.spawn_empty().id();
+        world.resource_mut::<GameState>().matrix.root_entity = root;
+        world.spawn((CurrentPiece, tetrimino, Positioned(pos)));
+
+        let result: Result = world.run_system_once(lock_down).unwrap();
+        result.unwrap();
+        world
+    }
+
+    #[test]
+    fn locking_entirely_above_skyline_is_lock_out() {
+        let world = lock_piece(TetriminoKind::I.into(), Pos::new(4, SKYLINE));
+        assert!(is_game_over(&world));
+    }
+
+    #[test]
+    fn locking_partially_above_skyline_is_not_game_over() {
+        // The O piece covers this row and the one above
+        let world = lock_piece(TetriminoKind::O.into(), Pos::new(4, SKYLINE - 1));
+        assert!(!is_game_over(&world));
+    }
+
+    #[test]
+    fn blocked_spawn_position_is_block_out() {
+        let mut world = World::new();
+        world.init_resource::<GameState>();
+        world.init_resource::<NextState<Phase>>();
+        world.spawn(NextTetriminoZone);
+        for x in 0..MATRIX_WIDTH as i8 {
+            world.spawn((Block, Positioned(Pos::new(x, INITIAL_POS.y))));
+        }
+
+        let result: Result = world.run_system_once(generate_piece).unwrap();
+        result.unwrap();
+
+        assert!(is_game_over(&world));
+        assert!(
+            world
+                .query_filtered::<(), With<CurrentPiece>>()
+                .iter(&world)
+                .next()
+                .is_none()
+        );
     }
 
     #[test]

@@ -70,6 +70,14 @@ pub fn bindings(commands: &mut Commands) {
                 --
                 Binding(GamepadButton::Select)
             ]
+            --
+            Action::<Restart>::new()
+            ~Press::default()
+            Bindings [
+                Binding(KeyCode::Enter)
+                --
+                Binding(GamepadButton::Start)
+            ]
         ]
     });
 }
@@ -104,6 +112,10 @@ pub struct HardDrop;
 #[derive(Debug, InputAction)]
 #[action_output(bool)]
 pub struct Pause;
+
+#[derive(Debug, InputAction)]
+#[action_output(bool)]
+pub struct Restart;
 
 fn toggle_pause(_trigger: On<Start<Pause>>, mut time: ResMut<Time<Virtual>>) {
     if time.is_paused() {

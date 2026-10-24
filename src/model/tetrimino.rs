@@ -54,6 +54,14 @@ impl Tetrimino {
         rotated
     }
 
+    pub fn min_y(&self, pos: &Pos) -> i8 {
+        self.block_positions(pos)
+            .iter()
+            .map(|p| p.y)
+            .min()
+            .unwrap_or_default()
+    }
+
     pub fn min_x(&self, pos: &Pos) -> i8 {
         self.block_positions(pos)
             .iter()
