@@ -6,9 +6,9 @@ use bevy_enhanced_input::prelude::*;
 use input::{HardDrop, Left, Restart, Right, RotateLeft, RotateRight, SoftDrop};
 use score::ScoreEvent;
 use spawners::{
-    INITIAL_POS, Positioned, SpawnMatrix, SpawnNextZone, SpawnPiece,
+    INITIAL_POS, Positioned, SpawnMatrix, SpawnNextZone,
     next_zone::NextTetriminoZone,
-    piece::{CurrentPiece, GhostPiece, Mino, SpawnMino},
+    piece::{CurrentPiece, GhostPiece, Mino, current_piece, ghost_piece, mino, next_piece},
 };
 use timers::Timers;
 
@@ -123,7 +123,7 @@ pub struct GameState {
 }
 
 /// A static block that has been committed to the matrix.
-#[derive(Component)]
+#[derive(Default, Clone, Component)]
 pub struct Block;
 
 fn load_resources(asset_server: Res<AssetServer>, mut commands: Commands) {
@@ -163,7 +163,7 @@ fn generate_piece(
 ) -> Result {
     let next_zone_entity = next_zone.single()?;
     let tetrimino: Tetrimino = state.bag.pop_next().into();
-    let next_piece: Tetrimino = state.bag.peek_next().into();
+    let next: Tetrimino = state.bag.peek_next().into();
 
     info!("Generating new tetrimino {:?}", tetrimino.kind);
 
@@ -178,11 +178,12 @@ fn generate_piece(
     if state.matrix.is_pos_valid(&tetrimino, &pos.down()) {
         pos = pos.down();
     }
-    commands.queue(SpawnPiece::current(tetrimino, pos).with_parent(state.matrix.root_entity));
+    let root = state.matrix.root_entity;
+    commands.spawn_scene(bsn! { @current_piece(tetrimino, pos) ChildOf(root) });
     let ghost_pos = state.matrix.lowest_valid_pos(&tetrimino, &pos);
-    commands.queue(SpawnPiece::ghost(tetrimino, ghost_pos).with_parent(state.matrix.root_entity));
+    commands.spawn_scene(bsn! { @ghost_piece(tetrimino, ghost_pos) ChildOf(root) });
 
-    commands.queue(SpawnPiece::next(next_piece).with_parent(next_zone_entity));
+    commands.spawn_scene(bsn! { @next_piece(next) ChildOf(next_zone_entity) });
 
     next_phase.set(Phase::Falling);
 
@@ -392,13 +393,14 @@ fn lock_down(
     ));
 
     for block_pos in piece.block_positions(piece_pos) {
+        let root = state.matrix.root_entity;
         let block = commands
-            .spawn((
-                Block,
-                Positioned(block_pos),
-                ChildOf(state.matrix.root_entity),
-            ))
-            .queue(SpawnMino(block_pos, GRAY.into()))
+            .spawn_scene(bsn! {
+                Block
+                Positioned(block_pos)
+                ChildOf(root)
+                @mino(block_pos, GRAY.into())
+            })
             .id();
         state.matrix.insert(block_pos, block);
     }
@@ -548,8 +550,15 @@ mod tests {
         )
     }
 
-    fn lock_piece(tetrimino: Tetrimino, pos: Pos) -> World {
-        let mut world = World::new();
+    fn lock_piece(tetrimino: Tetrimino, pos: Pos) -> App {
+        // Spawning scenes needs the asset server
+        let mut app = App::new();
+        app.add_plugins((
+            TaskPoolPlugin::default(),
+            AssetPlugin::default(),
+            bevy::scene::ScenePlugin,
+        ));
+        let world = app.world_mut();
         world.init_resource::<GameState>();
         world.init_resource::<NextState<Phase>>();
         world.insert_resource(GameAssets {
@@ -561,7 +570,7 @@ mod tests {
 
         let result: Result = world.run_system_once(lock_down).unwrap();
         result.unwrap();
-        world
+        app
     }
 
     #[test]
@@ -602,7 +611,8 @@ mod tests {
     fn locking_adds_blocks_to_the_matrix() {
         let tetrimino = Tetrimino::from(TetriminoKind::T);
         let pos = Pos::new(4, 0);
-        let world = lock_piece(tetrimino, pos);
+        let app = lock_piece(tetrimino, pos);
+        let world = app.world();
 
         let matrix = &world.resource::<GameState>().matrix;
         for block_pos in tetrimino.block_positions(&pos) {
@@ -614,15 +624,15 @@ mod tests {
 
     #[test]
     fn locking_entirely_above_skyline_is_lock_out() {
-        let world = lock_piece(TetriminoKind::I.into(), Pos::new(4, SKYLINE));
-        assert!(is_game_over(&world));
+        let app = lock_piece(TetriminoKind::I.into(), Pos::new(4, SKYLINE));
+        assert!(is_game_over(app.world()));
     }
 
     #[test]
     fn locking_partially_above_skyline_is_not_game_over() {
         // The O piece covers this row and the one above
-        let world = lock_piece(TetriminoKind::O.into(), Pos::new(4, SKYLINE - 1));
-        assert!(!is_game_over(&world));
+        let app = lock_piece(TetriminoKind::O.into(), Pos::new(4, SKYLINE - 1));
+        assert!(!is_game_over(app.world()));
     }
 
     #[test]
