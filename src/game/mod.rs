@@ -365,7 +365,7 @@ fn handle_lock(
                 for block_pos in piece.block_positions(piece_pos) {
                     children
                         .spawn((Block, Positioned(block_pos)))
-                        .queue(SpawnMino(block_pos, Some(GRAY.into())));
+                        .queue(SpawnMino(block_pos, GRAY.into()));
                 }
             });
     }

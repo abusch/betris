@@ -1,5 +1,4 @@
 use bevy::{
-    color::palettes::basic::AQUA,
     ecs::system::{EntityCommand, RunSystemOnce},
     prelude::*,
     sprite::Anchor,
@@ -8,6 +7,9 @@ use bevy::{
 use crate::model::{Pos, Tetrimino};
 
 use super::{INITIAL_POS, Positioned};
+
+/// Opacity of the ghost piece's minos
+const GHOST_ALPHA: f32 = 0.3;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PieceType {
@@ -84,7 +86,11 @@ fn spawn(In(config): In<SpawnPiece>, mut commands: Commands) {
             }
         }
 
-        let color = (piece_type != PieceType::Ghost).then_some(piece.kind.color());
+        let color = if piece_type == PieceType::Ghost {
+            piece.kind.color().with_alpha(GHOST_ALPHA)
+        } else {
+            piece.kind.color()
+        };
         // Spawn Mino entities as children of the new PieceBundle entity
         builder.with_children(|c| {
             for p in piece.block_offsets() {
@@ -111,7 +117,7 @@ pub struct GhostPiece;
 pub struct Mino;
 
 /// Command to add the necessary components to draw a _Mino_ to the given entity.
-pub struct SpawnMino(pub Pos, pub Option<Color>);
+pub struct SpawnMino(pub Pos, pub Color);
 
 impl EntityCommand for SpawnMino {
     type Out = ();
@@ -129,7 +135,7 @@ fn spawn_mino(In((entity, config)): In<(Entity, SpawnMino)>, mut commands: Comma
 
     commands.entity(entity).insert((
         Mino,
-        Sprite::from_color(color.unwrap_or(AQUA.into()), Vec2::splat(1.0)),
+        Sprite::from_color(color, Vec2::splat(1.0)),
         Anchor::BOTTOM_LEFT,
         Transform::from(pos),
     ));
