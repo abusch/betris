@@ -1,6 +1,5 @@
 use bevy::{
     color::palettes::css::{BLACK, GRAY},
-    ecs::{lifecycle::HookContext, world::DeferredWorld},
     prelude::*,
 };
 use bevy_enhanced_input::prelude::*;
@@ -125,19 +124,7 @@ pub struct GameState {
 
 /// A static block that has been committed to the matrix.
 #[derive(Component)]
-#[component(on_add = on_block_add)]
 pub struct Block;
-
-fn on_block_add(mut world: DeferredWorld, ctx: HookContext) {
-    let pos = world
-        .entity(ctx.entity)
-        .get::<Positioned>()
-        .copied()
-        .expect("Block component without Pos!");
-    info!("Block was added at {}", *pos);
-    let mut state = world.resource_mut::<GameState>();
-    state.matrix.insert(*pos, ctx.entity);
-}
 
 fn load_resources(asset_server: Res<AssetServer>, mut commands: Commands) {
     commands.insert_resource(GameAssets {
@@ -387,7 +374,7 @@ fn update_transforms(mut query: Query<(&mut Transform, &Positioned), Changed<Pos
 /// Lock down phase: turn the current piece into static blocks.
 fn lock_down(
     mut commands: Commands,
-    state: Res<GameState>,
+    mut state: ResMut<GameState>,
     assets: Res<GameAssets>,
     current_piece: Query<(Entity, &Positioned, &Tetrimino), With<CurrentPiece>>,
     ghost_piece: Query<Entity, With<GhostPiece>>,
@@ -400,15 +387,17 @@ fn lock_down(
         PlaybackSettings::DESPAWN,
     ));
 
-    commands
-        .entity(state.matrix.root_entity)
-        .with_children(|children| {
-            for block_pos in piece.block_positions(piece_pos) {
-                children
-                    .spawn((Block, Positioned(block_pos)))
-                    .queue(SpawnMino(block_pos, GRAY.into()));
-            }
-        });
+    for block_pos in piece.block_positions(piece_pos) {
+        let block = commands
+            .spawn((
+                Block,
+                Positioned(block_pos),
+                ChildOf(state.matrix.root_entity),
+            ))
+            .queue(SpawnMino(block_pos, GRAY.into()))
+            .id();
+        state.matrix.insert(block_pos, block);
+    }
 
     commands.entity(entity).despawn();
     for ghost in &ghost_piece {
@@ -448,9 +437,6 @@ fn restart(
 }
 
 /// Pattern and Eliminate phases: remove full lines and collapse the blocks above them.
-///
-/// The new blocks are only added to the matrix once the commands from `lock_down` are applied, so
-/// this must run after it.
 fn clear_lines(
     mut commands: Commands,
     mut state: ResMut<GameState>,
@@ -508,6 +494,12 @@ mod tests {
     use super::*;
     use crate::model::{Pos, TetriminoKind};
 
+    fn spawn_block(world: &mut World, pos: Pos) -> Entity {
+        let block = world.spawn((Block, Positioned(pos))).id();
+        world.resource_mut::<GameState>().matrix.insert(pos, block);
+        block
+    }
+
     #[test]
     fn clear_lines_removes_full_line_and_collapses_blocks_above() {
         let mut world = World::new();
@@ -515,9 +507,9 @@ mod tests {
         world.init_resource::<Messages<ScoreEvent>>();
 
         let full_line: Vec<Entity> = (0..MATRIX_WIDTH as i8)
-            .map(|x| world.spawn((Block, Positioned(Pos::new(x, 0)))).id())
+            .map(|x| spawn_block(&mut world, Pos::new(x, 0)))
             .collect();
-        let above = world.spawn((Block, Positioned(Pos::new(3, 1)))).id();
+        let above = spawn_block(&mut world, Pos::new(3, 1));
 
         world.run_system_once(clear_lines).unwrap();
 
@@ -563,6 +555,20 @@ mod tests {
     }
 
     #[test]
+    fn locking_adds_blocks_to_the_matrix() {
+        let tetrimino = Tetrimino::from(TetriminoKind::T);
+        let pos = Pos::new(4, 0);
+        let world = lock_piece(tetrimino, pos);
+
+        let matrix = &world.resource::<GameState>().matrix;
+        for block_pos in tetrimino.block_positions(&pos) {
+            let block = matrix.at_pos(block_pos);
+            assert_eq!(world.get::<Positioned>(block).unwrap().0, block_pos);
+        }
+        assert_eq!(matrix.iter_non_empty().count(), 4);
+    }
+
+    #[test]
     fn locking_entirely_above_skyline_is_lock_out() {
         let world = lock_piece(TetriminoKind::I.into(), Pos::new(4, SKYLINE));
         assert!(is_game_over(&world));
@@ -582,7 +588,7 @@ mod tests {
         world.init_resource::<NextState<Phase>>();
         world.spawn(NextTetriminoZone);
         for x in 0..MATRIX_WIDTH as i8 {
-            world.spawn((Block, Positioned(Pos::new(x, INITIAL_POS.y))));
+            spawn_block(&mut world, Pos::new(x, INITIAL_POS.y));
         }
 
         let result: Result = world.run_system_once(generate_piece).unwrap();
