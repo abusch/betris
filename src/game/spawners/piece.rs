@@ -6,7 +6,7 @@ use bevy::{
 
 use crate::model::{Pos, Tetrimino};
 
-use super::{INITIAL_POS, Positioned};
+use super::Positioned;
 
 /// Opacity of the ghost piece's minos
 const GHOST_ALPHA: f32 = 0.3;
@@ -22,13 +22,8 @@ pub enum PieceType {
 pub struct SpawnPiece(pub Entity, pub Tetrimino, pub Pos, pub PieceType);
 
 impl SpawnPiece {
-    pub fn current(tetrimino: Tetrimino) -> Self {
-        Self(
-            Entity::PLACEHOLDER,
-            tetrimino,
-            INITIAL_POS,
-            PieceType::Current,
-        )
+    pub fn current(tetrimino: Tetrimino, pos: Pos) -> Self {
+        Self(Entity::PLACEHOLDER, tetrimino, pos, PieceType::Current)
     }
 
     pub fn ghost(tetrimino: Tetrimino, pos: Pos) -> Self {

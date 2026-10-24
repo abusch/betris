@@ -34,34 +34,46 @@ pub const MATRIX_HEIGHT: u8 = 40;
 pub const SCALE: f32 = 20.0;
 
 pub fn plugin(app: &mut App) {
-    app.init_state::<Phase>()
+    app.add_sub_state::<Phase>()
         .init_resource::<GameState>()
         .insert_resource(ClearColor(BLACK.into()))
         .add_systems(
             OnEnter(Screen::Gameplay),
             (load_resources, game_setup).chain(),
         )
+        // Lock down, Pattern and Eliminate take no game time, so they run back to back in the
+        // frame where the piece locks, right before the next piece is generated.
+        .add_systems(
+            OnTransition {
+                exited: Phase::Falling,
+                entered: Phase::Generation,
+            },
+            (lock_down, clear_lines).chain(),
+        )
         .add_systems(
             OnEnter(Phase::Generation),
             (clean_up_pieces, generate_piece).chain(),
         )
-        .add_systems(OnExit(Phase::Generation), first_drop)
         .add_systems(OnEnter(Phase::Falling), start_fall_timer)
         .add_systems(
             Update,
             (
                 tick_timers.in_set(AppSystems::TickTimers),
                 handle_input.in_set(AppSystems::RecordInput),
-                (update_ghost, update_piece_transform)
-                    .chain()
-                    .in_set(AppSystems::Update),
             )
                 .run_if(in_state(Phase::Falling)),
         )
-        .add_systems(OnEnter(Phase::Lock), handle_lock)
-        .add_systems(OnEnter(Phase::Pattern), detect_patterns)
-        .add_systems(OnEnter(Phase::Eliminate), eliminate)
-        .add_systems(OnExit(Phase::Eliminate), update_blocks_transform)
+        .add_systems(
+            Update,
+            (
+                update_ghost.run_if(in_state(Phase::Falling)),
+                update_mino_offsets,
+                update_transforms,
+            )
+                .chain()
+                .in_set(AppSystems::Update)
+                .run_if(in_state(Screen::Gameplay)),
+        )
         .add_systems(OnExit(Screen::Gameplay), game_cleanup);
 
     app.add_plugins((input::plugin, spawners::plugin, score::plugin, ui::plugin));
@@ -75,17 +87,20 @@ pub struct GameAssets {
     impact: Handle<AudioSource>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Hash, States, Reflect, strum::Display)]
+/// The phases of the Tetris engine that take up game time (see Appendix A1 of the Tetris Design
+/// Guideline).
+///
+/// The other phases are instantaneous so they are not modeled as states: Lock down, Pattern and
+/// Eliminate run on the `Falling -> Generation` transition.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Hash, SubStates, Reflect, strum::Display)]
+#[source(Screen = Screen::Gameplay)]
 pub enum Phase {
-    Generation,
-    Falling,
-    Lock,
-    Pattern,
-    Animate,
-    Eliminate,
-    Completion,
+    /// Spawning the next piece
     #[default]
-    Noop,
+    Generation,
+    /// The player controls the piece. This also covers the guideline's Lock phase, i.e. when the
+    /// piece is on a surface and the lock down timer is running.
+    Falling,
 }
 
 #[derive(Default, Resource, Reflect)]
@@ -118,11 +133,7 @@ fn load_resources(asset_server: Res<AssetServer>, mut commands: Commands) {
     });
 }
 
-fn game_setup(
-    mut commands: Commands,
-    mut next_phase: ResMut<NextState<Phase>>,
-    mut event_writer: MessageWriter<ScoreEvent>,
-) {
+fn game_setup(mut commands: Commands, mut event_writer: MessageWriter<ScoreEvent>) {
     commands.init_resource::<Timers>();
 
     commands.queue(SpawnMatrix);
@@ -130,8 +141,6 @@ fn game_setup(
     input::bindings(&mut commands);
 
     event_writer.write(ScoreEvent::LevelStart(1));
-
-    next_phase.set(Phase::Generation);
 }
 
 fn game_cleanup(mut commands: Commands) {
@@ -157,8 +166,13 @@ fn generate_piece(
 
     info!("Generating new tetrimino {:?}", tetrimino.kind);
 
-    commands.queue(SpawnPiece::current(tetrimino).with_parent(state.matrix.root_entity));
-    let ghost_pos = state.matrix.lowest_valid_pos(&tetrimino, &INITIAL_POS);
+    // The piece drops one row as soon as it is generated, unless something is in its way
+    let mut pos = INITIAL_POS;
+    if state.matrix.is_pos_valid(&tetrimino, &pos.down()) {
+        pos = pos.down();
+    }
+    commands.queue(SpawnPiece::current(tetrimino, pos).with_parent(state.matrix.root_entity));
+    let ghost_pos = state.matrix.lowest_valid_pos(&tetrimino, &pos);
     commands.queue(SpawnPiece::ghost(tetrimino, ghost_pos).with_parent(state.matrix.root_entity));
 
     commands.queue(SpawnPiece::next(next_piece).with_parent(next_zone_entity));
@@ -171,19 +185,6 @@ fn generate_piece(
 fn start_fall_timer(mut timers: ResMut<Timers>) {
     info!("Starting fall timer");
     timers.fall.normal_drop();
-}
-
-fn first_drop(
-    mut current_piece_query: Query<(&mut Tetrimino, &mut Positioned), With<CurrentPiece>>,
-    state: Res<GameState>,
-) -> Result {
-    let (current_piece, mut pos) = current_piece_query.single_mut()?;
-    let down_pos = pos.down();
-    if current_piece.min_y(&down_pos) >= 0 && state.matrix.is_pos_valid(&current_piece, &down_pos) {
-        **pos = down_pos;
-    }
-
-    Ok(())
 }
 
 fn tick_timers(mut timers: ResMut<Timers>, time: Res<Time>) {
@@ -205,9 +206,9 @@ fn handle_input(
 ) -> Result {
     let (mut current_piece, mut pos) = current_piece_query.single_mut()?;
 
-    // If lock timer has expired -> move to LOCK state
+    // If lock timer has expired -> lock down (see the `Falling -> Generation` transition)
     if timers.lock.times_finished_this_tick() > 0 {
-        next_phase.set(Phase::Lock);
+        next_phase.set(Phase::Generation);
         return Ok(());
     }
 
@@ -257,7 +258,8 @@ fn handle_input(
         **pos = state.matrix.lowest_valid_pos(&current_piece, &pos);
         let n = (previous_pos.y - pos.y) as u8;
         score_messages.write(ScoreEvent::HardDrop(n));
-        next_phase.set(Phase::Lock);
+        // A hard dropped piece locks down immediately
+        next_phase.set(Phase::Generation);
         return Ok(());
     }
     if soft_drop.contains(ActionEvents::START) {
@@ -313,125 +315,103 @@ fn update_ghost(
     Ok(())
 }
 
-/// Update the piece's Transform based on its grid position.
-///
-/// The piece's position (as tracked by `Pos`) is the position (in grid coordinates) of the "visual
-/// center" of the piece. The blocks that make up the piece will be positioned relative to that.
-fn update_piece_transform(
-    mut pieces: Query<(&mut Transform, Ref<Positioned>, Ref<Tetrimino>, &Children), Without<Mino>>,
-    mut blocks: Query<&mut Transform, With<Mino>>,
+/// Position each piece's minos relative to the piece when its facing changes.
+fn update_mino_offsets(
+    pieces: Query<(&Tetrimino, &Children), Changed<Tetrimino>>,
+    mut minos: Query<&mut Transform, With<Mino>>,
 ) {
-    for (mut transform, pos, piece, children) in pieces.iter_mut() {
-        // If the position of the piece has changed, update its transform
-        if pos.is_changed() {
-            info!("Updating current piece transform");
-            // Preserve z so the ghost stays behind the current piece
-            let z = transform.translation.z;
-            transform.translation = Transform::from(pos.0).translation.with_z(z);
-        }
-        if piece.is_changed() {
-            info!("Updating current piece's blocks transform");
-            for (child, offset) in children.iter().zip(piece.block_offsets()) {
-                if let Ok(mut transform) = blocks.get_mut(child) {
-                    *transform = offset.into();
-                }
+    for (piece, children) in &pieces {
+        for (child, offset) in children.iter().zip(piece.block_offsets()) {
+            if let Ok(mut transform) = minos.get_mut(child) {
+                *transform = offset.into();
             }
         }
     }
 }
 
-fn handle_lock(
+/// Update the Transform of pieces and blocks based on their grid position.
+///
+/// A piece's position is the position (in grid coordinates) of its "visual center". The minos
+/// that make up the piece are positioned relative to that.
+fn update_transforms(mut query: Query<(&mut Transform, &Positioned), Changed<Positioned>>) {
+    for (mut transform, pos) in &mut query {
+        // Preserve z so the ghost stays behind the current piece
+        let z = transform.translation.z;
+        transform.translation = Transform::from(pos.0).translation.with_z(z);
+    }
+}
+
+/// Lock down phase: turn the current piece into static blocks.
+fn lock_down(
     mut commands: Commands,
     state: Res<GameState>,
     assets: Res<GameAssets>,
     current_piece: Query<(Entity, &Positioned, &Tetrimino), With<CurrentPiece>>,
     ghost_piece: Query<Entity, With<GhostPiece>>,
-    mut next_phase: ResMut<NextState<Phase>>,
-) {
-    if let Ok((entity, piece_pos, piece)) = current_piece.single() {
-        info!("Locking piece");
-        commands.spawn((
-            AudioPlayer(assets.impact.clone()),
-            PlaybackSettings::DESPAWN,
-        ));
+) -> Result {
+    let (entity, piece_pos, piece) = current_piece.single()?;
+    info!("Locking piece");
+    commands.spawn((
+        AudioPlayer(assets.impact.clone()),
+        PlaybackSettings::DESPAWN,
+    ));
 
-        // The piece is replaced by static blocks, so remove it right away rather than waiting for
-        // the next Generation phase, otherwise it overlaps the blocks for a few frames.
-        commands.entity(entity).despawn();
+    commands
+        .entity(state.matrix.root_entity)
+        .with_children(|children| {
+            for block_pos in piece.block_positions(piece_pos) {
+                children
+                    .spawn((Block, Positioned(block_pos)))
+                    .queue(SpawnMino(block_pos, GRAY.into()));
+            }
+        });
 
-        commands
-            .entity(state.matrix.root_entity)
-            .with_children(|children| {
-                for block_pos in piece.block_positions(piece_pos) {
-                    children
-                        .spawn((Block, Positioned(block_pos)))
-                        .queue(SpawnMino(block_pos, GRAY.into()));
-                }
-            });
-    }
+    commands.entity(entity).despawn();
     for ghost in &ghost_piece {
         commands.entity(ghost).despawn();
     }
 
-    next_phase.set(Phase::Pattern);
+    Ok(())
 }
 
-#[derive(Component)]
-pub struct ToDelete;
-
-fn detect_patterns(
+/// Pattern and Eliminate phases: remove full lines and collapse the blocks above them.
+///
+/// The new blocks are only added to the matrix once the commands from `lock_down` are applied, so
+/// this must run after it.
+fn clear_lines(
     mut commands: Commands,
-    state: ResMut<GameState>,
-    mut next_phase: ResMut<NextState<Phase>>,
-) {
-    let mut has_deletions = false;
-    for e in state.matrix.entities_to_delete() {
-        info!("Marking block {e} for deletion");
-        commands.entity(e).insert(ToDelete);
-        has_deletions = true;
-    }
-
-    if has_deletions {
-        next_phase.set(Phase::Eliminate);
-    } else {
-        // if there is nothing to delete, go straight back to the Generation phase
-        next_phase.set(Phase::Generation);
-    }
-}
-
-fn eliminate(
-    mut commands: Commands,
-    to_delete: Query<Entity, With<ToDelete>>,
     mut state: ResMut<GameState>,
-    mut next_phase: ResMut<NextState<Phase>>,
+    mut blocks: Query<&mut Positioned, With<Block>>,
     mut event_writer: MessageWriter<ScoreEvent>,
 ) {
-    // Despawn entities that were deleted
-    for e in to_delete.iter() {
+    let lines = state.matrix.full_lines();
+    if lines.is_empty() {
+        return;
+    }
+
+    for e in state.matrix.entities_to_delete() {
         info!("Despawning block {e}");
         commands.entity(e).despawn();
     }
 
-    // Remove lines from the matrix
-    let mut lines = state.matrix.full_lines();
-    let num_lines = lines.len();
-    lines.reverse();
-    for line in lines {
+    // Remove lines from the top down so the indices of the remaining lines stay valid
+    for &line in lines.iter().rev() {
         info!("Removing line {line}");
         state.matrix.delete_line(line);
     }
 
     // Reflect new positions
     for (pos, entity) in state.matrix.iter_non_empty() {
-        if let Ok(mut entity_commands) = commands.get_entity(entity) {
-            entity_commands.insert(Positioned(pos));
+        if let Ok(mut block_pos) = blocks.get_mut(entity) {
+            if block_pos.0 != pos {
+                block_pos.0 = pos;
+            }
         } else {
             warn!("Missing entity {entity}");
         }
     }
 
-    match num_lines {
-        0 => (),
+    match lines.len() {
         1 => {
             event_writer.write(ScoreEvent::Single);
         }
@@ -446,13 +426,43 @@ fn eliminate(
         }
         n => warn!("How did we complete {n} lines?!?"),
     }
-
-    next_phase.set(Phase::Generation);
 }
 
-fn update_blocks_transform(mut blocks: Query<(&mut Transform, &Positioned), With<Block>>) {
-    for (mut transform, pos) in blocks.iter_mut() {
-        // If the position of the block has changed, update its transform
-        *transform = pos.0.into();
+#[cfg(test)]
+mod tests {
+    use bevy::ecs::{message::Messages, system::RunSystemOnce};
+
+    use super::*;
+    use crate::model::Pos;
+
+    #[test]
+    fn clear_lines_removes_full_line_and_collapses_blocks_above() {
+        let mut world = World::new();
+        world.init_resource::<GameState>();
+        world.init_resource::<Messages<ScoreEvent>>();
+
+        let full_line: Vec<Entity> = (0..MATRIX_WIDTH as i8)
+            .map(|x| world.spawn((Block, Positioned(Pos::new(x, 0)))).id())
+            .collect();
+        let above = world.spawn((Block, Positioned(Pos::new(3, 1)))).id();
+
+        world.run_system_once(clear_lines).unwrap();
+
+        for e in full_line {
+            assert!(
+                world.get_entity(e).is_err(),
+                "block {e} should be despawned"
+            );
+        }
+        assert_eq!(world.get::<Positioned>(above).unwrap().0, Pos::new(3, 0));
+        let state = world.resource::<GameState>();
+        assert_eq!(state.matrix.at_pos(Pos::new(3, 0)), above);
+        assert_eq!(state.matrix.at_pos(Pos::new(3, 1)), Entity::PLACEHOLDER);
+        let messages: Vec<_> = world
+            .resource::<Messages<ScoreEvent>>()
+            .iter_current_update_messages()
+            .copied()
+            .collect();
+        assert_eq!(messages, [ScoreEvent::Single]);
     }
 }
