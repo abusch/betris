@@ -208,7 +208,10 @@ fn generation_delay_elapsed(timers: Res<Timers>) -> bool {
     timers.generation.just_finished()
 }
 
-fn start_fall_timer(mut timers: ResMut<Timers>) {
+fn start_fall_timer(
+    mut timers: ResMut<Timers>,
+    current_piece: Single<&Positioned, With<CurrentPiece>>,
+) {
     info!("Starting fall timer");
     timers.fall.normal_drop();
     // The fall timer is paused while a piece is on a surface, so it is still paused if the previous
@@ -216,8 +219,7 @@ fn start_fall_timer(mut timers: ResMut<Timers>) {
     timers.fall.unpause();
     // Timers keep ticking during the Generation phase, so make sure the previous piece's lock
     // timer doesn't carry over to the new piece
-    timers.lock.reset();
-    timers.lock.pause();
+    timers.lock.start(current_piece.y);
 }
 
 fn tick_timers(mut timers: ResMut<Timers>, time: Res<Time>) {
@@ -261,12 +263,14 @@ fn handle_input(
         let rotated = current_piece.rotated_ccw();
         if state.matrix.is_pos_valid(&rotated, &pos) {
             *current_piece = rotated;
+            timers.lock.on_move();
         }
     }
     if rotate_right.contains(ActionEvents::FIRE) {
         let rotated = current_piece.rotated_cw();
         if state.matrix.is_pos_valid(&rotated, &pos) {
             *current_piece = rotated;
+            timers.lock.on_move();
         }
     }
 
@@ -276,14 +280,15 @@ fn handle_input(
             && state.matrix.is_pos_valid(&current_piece, &left_pos)
         {
             **pos = left_pos;
+            timers.lock.on_move();
         }
     } else if right.contains(ActionEvents::FIRE) {
-        // {
         let right_pos = pos.right();
         if current_piece.max_x(&right_pos) <= 9
             && state.matrix.is_pos_valid(&current_piece, &right_pos)
         {
             **pos = right_pos;
+            timers.lock.on_move();
         }
     }
     if hard_drop.contains(ActionEvents::FIRE) {
@@ -308,21 +313,26 @@ fn handle_input(
         timers.fall.normal_drop();
     }
 
+    timers.lock.on_fall(pos.y);
+
     if state.matrix.is_on_surface(&current_piece, &pos) {
-        // If we just landed on a surface, kick off the lock timer
+        if timers.lock.moves_exhausted() {
+            info!("No moves left, locking down");
+            next_phase.set(Phase::Generation);
+            return Ok(());
+        }
+        // If we just landed on a surface, (re)start the lock timer. It isn't reset here, so a
+        // piece that was lifted off a surface and lands again carries on where it left off.
         if timers.lock.is_paused() {
             info!("Starting lock timer!");
             timers.fall.pause();
-            timers.lock.reset();
             timers.lock.unpause();
         }
-    } else {
+    } else if !timers.lock.is_paused() {
         // If we were in lock phase but are free to fall, go back to "falling" phase
-        if !timers.lock.is_paused() {
-            timers.lock.pause();
-            timers.fall.normal_drop();
-            timers.fall.unpause();
-        }
+        timers.lock.pause();
+        timers.fall.reset();
+        timers.fall.unpause();
     }
 
     Ok(())
