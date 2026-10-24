@@ -142,8 +142,10 @@ fn game_setup(mut commands: Commands, mut event_writer: MessageWriter<ScoreEvent
     event_writer.write(ScoreEvent::LevelStart(1));
 }
 
-fn game_cleanup(mut commands: Commands) {
+fn game_cleanup(mut commands: Commands, mut state: ResMut<GameState>) {
     commands.remove_resource::<Timers>();
+    // The matrix's entities are despawned along with the Gameplay screen
+    *state = GameState::default();
 }
 
 fn clean_up_pieces(mut commands: Commands, pieces: Query<Entity, With<Tetrimino>>) {
@@ -495,9 +497,15 @@ mod tests {
     use crate::model::{Pos, TetriminoKind};
 
     fn spawn_block(world: &mut World, pos: Pos) -> Entity {
-        let block = world.spawn((Block, Positioned(pos))).id();
-        world.resource_mut::<GameState>().matrix.insert(pos, block);
+        let block = world.spawn_empty().id();
+        spawn_block_entity(world, pos, block);
         block
+    }
+
+    /// Turn `entity` into a block at `pos` and add it to the matrix
+    fn spawn_block_entity(world: &mut World, pos: Pos, entity: Entity) {
+        world.entity_mut(entity).insert((Block, Positioned(pos)));
+        world.resource_mut::<GameState>().matrix.insert(pos, entity);
     }
 
     #[test]
@@ -552,6 +560,40 @@ mod tests {
         let result: Result = world.run_system_once(lock_down).unwrap();
         result.unwrap();
         world
+    }
+
+    #[test]
+    fn leaving_gameplay_cleans_up_the_matrix() {
+        let mut app = App::new();
+        app.add_plugins(bevy::state::app::StatesPlugin)
+            .insert_state(Screen::Gameplay)
+            .init_resource::<GameState>()
+            .add_systems(OnExit(Screen::Gameplay), game_cleanup);
+        app.world_mut().commands().queue(SpawnMatrix);
+        app.update();
+
+        let world = app.world_mut();
+        let root = world.resource::<GameState>().matrix.root_entity;
+        let block = world.spawn(ChildOf(root)).id();
+        spawn_block_entity(world, Pos::new(0, 0), block);
+
+        world
+            .resource_mut::<NextState<Screen>>()
+            .set(Screen::Splash);
+        app.update();
+
+        let world = app.world();
+        assert!(
+            world.get_entity(root).is_err(),
+            "matrix should be despawned"
+        );
+        assert!(
+            world.get_entity(block).is_err(),
+            "block should be despawned"
+        );
+        let matrix = &world.resource::<GameState>().matrix;
+        assert_eq!(matrix.root_entity, Entity::PLACEHOLDER);
+        assert_eq!(matrix.iter_non_empty().count(), 0);
     }
 
     #[test]

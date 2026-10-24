@@ -1,7 +1,10 @@
 use bevy::{ecs::system::RunSystemOnce, prelude::*, sprite::Anchor};
 use bevy_enhanced_input::prelude::Actions;
 
-use crate::game::{GameState, MATRIX_WIDTH, SCALE, input::InGame};
+use crate::{
+    game::{GameState, MATRIX_WIDTH, SCALE, input::InGame},
+    screen::Screen,
+};
 
 #[derive(Debug)]
 pub struct SpawnMatrix;
@@ -17,10 +20,11 @@ impl Command for SpawnMatrix {
 }
 
 fn spawn(In(_): In<SpawnMatrix>, mut commands: Commands, mut state: ResMut<GameState>) {
-    // Matrix i.e main game area
+    // Matrix i.e main game area. Despawning it also despawns the blocks and pieces in it.
     state.matrix.root_entity = commands
         .spawn((
             Name::new("Matrix"),
+            DespawnOnExit(Screen::Gameplay),
             Transform::from_xyz(-10.0 * SCALE, -11.0 * SCALE, 1.0)
                 .with_scale(Vec3::new(SCALE, SCALE, 1.0)),
             Visibility::default(),
