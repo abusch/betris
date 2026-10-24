@@ -3,8 +3,7 @@ use bevy::prelude::*;
 use crate::{AppSystems, screen::Screen};
 
 pub fn plugin(app: &mut App) {
-    app.init_resource::<Score>()
-        .add_message::<ScoreEvent>()
+    app.add_message::<ScoreEvent>()
         .add_systems(OnEnter(Screen::Gameplay), setup)
         .add_systems(
             Update,
@@ -85,7 +84,9 @@ pub enum ScoreEvent {
     HardDrop(u8),
 }
 
-fn setup() {}
+fn setup(mut commands: Commands) {
+    commands.init_resource::<Score>();
+}
 
 fn cleanup(mut commands: Commands) {
     commands.remove_resource::<Score>();

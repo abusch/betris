@@ -4,6 +4,8 @@ use bevy_enhanced_input::{
     prelude::{Press, *},
 };
 
+use crate::screen::Screen;
+
 pub fn plugin(app: &mut App) {
     app.add_plugins(EnhancedInputPlugin)
         .add_input_context::<InGame>()
@@ -14,6 +16,7 @@ pub fn plugin(app: &mut App) {
 pub fn bindings(commands: &mut Commands) {
     commands.spawn_scene(bsn! {
         InGame
+        DespawnOnExit<Screen>(Screen::Gameplay)
         Actions<InGame> [
             Action::<Left>::new()
             ~AutoRepeat::new(0.3, 0.05)

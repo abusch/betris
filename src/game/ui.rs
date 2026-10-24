@@ -9,12 +9,13 @@ const FONT: &str = "fonts/BungeeSpice-Regular.ttf";
 pub fn plugin(app: &mut App) {
     app.add_systems(OnEnter(Screen::Gameplay), setup)
         .add_systems(OnEnter(Phase::GameOver), show_game_over)
-        .add_systems(Update, update);
+        .add_systems(Update, update.run_if(in_state(Screen::Gameplay)));
 }
 
 fn setup(mut commands: Commands) {
     commands.spawn_scene(bsn! {
         #Score
+        DespawnOnExit<Screen>(Screen::Gameplay)
         Text("Score: ")
         TextLayout::no_wrap()
         TextFont {
