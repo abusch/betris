@@ -12,23 +12,69 @@ pub fn plugin(app: &mut App) {
 }
 
 pub fn bindings(commands: &mut Commands) {
-    commands.spawn((
-        InGame,
-        actions!(InGame[
-            (Action::<Left>::new(), AutoRepeat::new(0.3, 0.05), bindings![KeyCode::ArrowLeft, GamepadButton::DPadLeft],),
-            (Action::<Right>::new(), AutoRepeat::new(0.3, 0.05), bindings![KeyCode::ArrowRight, GamepadButton::DPadRight],),
-            // (Action::<Left>::new(), AutoRepeat::new(0.3, 0.05), bindings![ GamepadButton::LeftTrigger],),
-            // (Action::<Right>::new(), AutoRepeat::new(0.3, 0.05), bindings![ GamepadButton::RightTrigger],),
-            (Action::<RotateLeft>::new(), Press::default(), bindings![KeyCode::KeyZ, GamepadButton::South],),
-            (Action::<RotateRight>::new(), Press::default(), bindings![KeyCode::KeyX, GamepadButton::East],),
-            (Action::<SoftDrop>::new(), Down::default(), bindings![KeyCode::ArrowDown, GamepadButton::DPadDown],),
-            (Action::<HardDrop>::new(), Press::default(), bindings![KeyCode::Space, GamepadButton::DPadUp],),
-            (Action::<Pause>::new(), Press::default(), bindings![KeyCode::KeyP, GamepadButton::Select],),
-        ]),
-    ));
+    commands.spawn_scene(bsn! {
+        InGame
+        Actions<InGame> [
+            Action::<Left>::new()
+            ~AutoRepeat::new(0.3, 0.05)
+            Bindings [
+                Binding(KeyCode::ArrowLeft)
+                --
+                Binding(GamepadButton::DPadLeft)
+            ]
+            --
+            Action::<Right>::new()
+            ~AutoRepeat::new(0.3, 0.05)
+            Bindings [
+                Binding(KeyCode::ArrowRight)
+                --
+                Binding(GamepadButton::DPadRight)
+            ]
+            --
+            Action::<RotateLeft>::new()
+            ~Press::default()
+            Bindings [
+                Binding(KeyCode::KeyZ)
+                --
+                Binding(GamepadButton::South)
+            ]
+            --
+            Action::<RotateRight>::new()
+            ~Press::default()
+            Bindings [
+                Binding(KeyCode::KeyX)
+                --
+                Binding(GamepadButton::East)
+            ]
+            --
+            Action::<SoftDrop>::new()
+            ~Down::default()
+            Bindings [
+                Binding(KeyCode::ArrowDown)
+                --
+                Binding(GamepadButton::DPadDown)
+            ]
+            --
+            Action::<HardDrop>::new()
+            ~Press::default()
+            Bindings [
+                Binding(KeyCode::Space)
+                --
+                Binding(GamepadButton::DPadUp)
+            ]
+            --
+            Action::<Pause>::new()
+            ~Press::default()
+            Bindings [
+                Binding(KeyCode::KeyP)
+                --
+                Binding(GamepadButton::Select)
+            ]
+        ]
+    });
 }
 
-#[derive(Debug, Default, Component)]
+#[derive(Debug, Default, Clone, Component)]
 pub struct InGame;
 
 #[derive(Debug, InputAction)]
@@ -67,7 +113,7 @@ fn toggle_pause(_trigger: On<Start<Pause>>, mut time: ResMut<Time<Virtual>>) {
     }
 }
 
-#[derive(Debug, Component)]
+#[derive(Debug, Clone, Component)]
 pub struct AutoRepeat {
     actuated: bool,
     actuation: f32,

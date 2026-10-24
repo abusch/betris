@@ -65,7 +65,9 @@ impl Matrix {
 
     pub fn full_lines(&self) -> Vec<usize> {
         self.board
-            .chunks_exact(MATRIX_WIDTH as usize)
+            .as_chunks::<{ MATRIX_WIDTH as usize }>()
+            .0
+            .iter()
             .enumerate()
             .filter_map(|(idx, line)| {
                 line.iter()

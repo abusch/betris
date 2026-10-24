@@ -25,14 +25,14 @@ fn setup(mut commands: Commands) {
             top: px(5.0),
             left: px(5.0),
         }
-        Children [(
+        Children [
             TextSpan("")
             ScoreText
             TextFont {
                 font: FontSourceTemplate::Handle(font_name),
                 font_size: FontSize::Px(40.0)
             }
-        )]
+        ]
     });
 }
 
