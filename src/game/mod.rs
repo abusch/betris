@@ -6,8 +6,8 @@ use bevy_enhanced_input::prelude::*;
 use input::{HardDrop, Left, Restart, Right, RotateLeft, RotateRight, SoftDrop};
 use score::ScoreEvent;
 use spawners::{
-    INITIAL_POS, Positioned, SpawnMatrix, SpawnNextZone,
-    next_zone::NextTetriminoZone,
+    INITIAL_POS, Positioned, SpawnMatrix,
+    next_zone::{NextTetriminoZone, next_zone},
     piece::{CurrentPiece, GhostPiece, Mino, current_piece, ghost_piece, mino, next_piece},
 };
 use timers::Timers;
@@ -136,7 +136,7 @@ fn game_setup(mut commands: Commands, mut event_writer: MessageWriter<ScoreEvent
     commands.init_resource::<Timers>();
 
     commands.queue(SpawnMatrix);
-    commands.queue(SpawnNextZone);
+    commands.spawn_scene(next_zone());
     input::bindings(&mut commands);
 
     event_writer.write(ScoreEvent::LevelStart(1));
