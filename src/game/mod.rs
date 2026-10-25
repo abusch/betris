@@ -6,7 +6,8 @@ use bevy_enhanced_input::prelude::*;
 use input::{HardDrop, Left, Restart, Right, RotateLeft, RotateRight, SoftDrop};
 use score::ScoreEvent;
 use spawners::{
-    INITIAL_POS, Positioned, SpawnMatrix,
+    INITIAL_POS, Positioned,
+    matrix::matrix,
     next_zone::{NextTetriminoZone, next_zone},
     piece::{CurrentPiece, GhostPiece, Mino, current_piece, ghost_piece, mino, next_piece},
 };
@@ -132,10 +133,14 @@ fn load_resources(asset_server: Res<AssetServer>, mut commands: Commands) {
     });
 }
 
-fn game_setup(mut commands: Commands, mut event_writer: MessageWriter<ScoreEvent>) {
+fn game_setup(
+    mut commands: Commands,
+    mut state: ResMut<GameState>,
+    mut event_writer: MessageWriter<ScoreEvent>,
+) {
     commands.init_resource::<Timers>();
 
-    commands.queue(SpawnMatrix);
+    state.matrix.root_entity = commands.spawn_scene(matrix()).id();
     commands.spawn_scene(next_zone());
     input::bindings(&mut commands);
 
@@ -550,14 +555,19 @@ mod tests {
         )
     }
 
-    fn lock_piece(tetrimino: Tetrimino, pos: Pos) -> App {
-        // Spawning scenes needs the asset server
+    /// An app that can spawn scenes, which needs the asset server
+    fn scene_app() -> App {
         let mut app = App::new();
         app.add_plugins((
             TaskPoolPlugin::default(),
             AssetPlugin::default(),
             bevy::scene::ScenePlugin,
         ));
+        app
+    }
+
+    fn lock_piece(tetrimino: Tetrimino, pos: Pos) -> App {
+        let mut app = scene_app();
         let world = app.world_mut();
         world.init_resource::<GameState>();
         world.init_resource::<NextState<Phase>>();
@@ -575,16 +585,16 @@ mod tests {
 
     #[test]
     fn leaving_gameplay_cleans_up_the_matrix() {
-        let mut app = App::new();
+        let mut app = scene_app();
         app.add_plugins(bevy::state::app::StatesPlugin)
             .insert_state(Screen::Gameplay)
             .init_resource::<GameState>()
             .add_systems(OnExit(Screen::Gameplay), game_cleanup);
-        app.world_mut().commands().queue(SpawnMatrix);
         app.update();
 
         let world = app.world_mut();
-        let root = world.resource::<GameState>().matrix.root_entity;
+        let root = world.spawn_scene(matrix()).unwrap().id();
+        world.resource_mut::<GameState>().matrix.root_entity = root;
         let block = world.spawn(ChildOf(root)).id();
         spawn_block_entity(world, Pos::new(0, 0), block);
 

@@ -1,73 +1,46 @@
-use bevy::{ecs::system::RunSystemOnce, prelude::*, sprite::Anchor};
+use bevy::{prelude::*, sprite::Anchor};
 use bevy_enhanced_input::prelude::Actions;
 
 use crate::{
-    game::{GameState, MATRIX_WIDTH, SCALE, input::InGame},
+    game::{MATRIX_WIDTH, SCALE, input::InGame},
     screen::Screen,
 };
 
-#[derive(Debug)]
-pub struct SpawnMatrix;
-
-impl Command for SpawnMatrix {
-    type Out = ();
-
-    fn apply(self, world: &mut World) {
-        world
-            .run_system_once_with(spawn, self)
-            .expect("Failed to spawn Matrix");
+/// Main game area. Despawning it also despawns the blocks and pieces in it.
+pub fn matrix() -> impl Scene {
+    let transform = Transform::from_xyz(-10.0 * SCALE, -11.0 * SCALE, 1.0)
+        .with_scale(Vec3::new(SCALE, SCALE, 1.0));
+    let width = MATRIX_WIDTH as f32;
+    bsn! {
+        Name("Matrix")
+        DespawnOnExit<Screen>(Screen::Gameplay)
+        transform
+        Visibility
+        Actions<InGame>
+        Children [
+            // Floor is 1 unit below "zero"
+            @wall(width, 1.0, 0.0, -1.0)
+            Name("Bottom wall")
+            --
+            @wall(width, 1.0, 0.0, 22.0)
+            Name("Top wall")
+            --
+            @wall(1.0, 24.0, -1.0, -1.0)
+            Name("Left wall")
+            --
+            @wall(1.0, 24.0, width, -1.0)
+            Name("Right wall")
+        ]
     }
 }
 
-fn spawn(In(_): In<SpawnMatrix>, mut commands: Commands, mut state: ResMut<GameState>) {
-    // Matrix i.e main game area. Despawning it also despawns the blocks and pieces in it.
-    state.matrix.root_entity = commands
-        .spawn((
-            Name::new("Matrix"),
-            DespawnOnExit(Screen::Gameplay),
-            Transform::from_xyz(-10.0 * SCALE, -11.0 * SCALE, 1.0)
-                .with_scale(Vec3::new(SCALE, SCALE, 1.0)),
-            Visibility::default(),
-            Actions::<InGame>::default(),
-            children![
-                (
-                    Name::new("Bottom wall"),
-                    Sprite {
-                        custom_size: Some(Vec2::new(MATRIX_WIDTH as f32, 1.0)),
-                        ..default()
-                    },
-                    Anchor::BOTTOM_LEFT,
-                    // Floor is 1 unit below "zero"
-                    Transform::from_xyz(0.0, -1.0, 1.0),
-                ),
-                (
-                    Name::new("Top wall"),
-                    Sprite {
-                        custom_size: Some(Vec2::new(MATRIX_WIDTH as f32, 1.0)),
-                        ..default()
-                    },
-                    Anchor::BOTTOM_LEFT,
-                    Transform::from_xyz(0.0, 22.0, 1.0),
-                ),
-                (
-                    Name::new("Left wall"),
-                    Sprite {
-                        custom_size: Some(Vec2::new(1.0, 24.0)),
-                        ..default()
-                    },
-                    Anchor::BOTTOM_LEFT,
-                    Transform::from_xyz(-1.0, -1.0, 1.0),
-                ),
-                (
-                    Name::new("Right wall"),
-                    Sprite {
-                        custom_size: Some(Vec2::new(1.0, 24.0)),
-                        ..default()
-                    },
-                    Anchor::BOTTOM_LEFT,
-                    Transform::from_xyz(MATRIX_WIDTH as f32, -1.0, 1.0),
-                )
-            ],
-        ))
-        .id();
+/// A wall of the given size, with its bottom left corner at the given position
+fn wall(width: f32, height: f32, x: f32, y: f32) -> impl Scene {
+    let anchor = Anchor::BOTTOM_LEFT;
+    let transform = Transform::from_xyz(x, y, 1.0);
+    bsn! {
+        Sprite { custom_size: {Some(Vec2::new(width, height))} }
+        anchor
+        transform
+    }
 }
