@@ -43,16 +43,21 @@ pub(super) struct FallTimer {
 
 impl FallTimer {
     pub fn new() -> Self {
-        // TODO make it depend on the current game level
-        let normal_duration = Duration::from_millis(1000);
+        let mut fall = Self {
+            timer: Timer::new(Duration::ZERO, TimerMode::Repeating),
+            normal_duration: Duration::ZERO,
+            softdrop_duration: Duration::ZERO,
+        };
+        fall.set_level(1);
+        fall.normal_drop();
+        fall
+    }
+
+    /// Set the fall speed for the given level. It takes effect on the next normal or soft drop.
+    pub fn set_level(&mut self, level: u64) {
+        self.normal_duration = normal_fall_speed(level);
         // Pieces fall down 20x faster during soft drop
-        let softdrop_duration = Duration::from_millis(1000 / 20);
-        let timer = Timer::new(normal_duration, TimerMode::Repeating);
-        Self {
-            timer,
-            normal_duration,
-            softdrop_duration,
-        }
+        self.softdrop_duration = self.normal_duration / 20;
     }
 
     pub fn normal_drop(&mut self) {
@@ -71,6 +76,12 @@ impl Default for FallTimer {
     fn default() -> Self {
         Self::new()
     }
+}
+
+/// Time it takes a piece to fall by one line on the given level (see section 7 of the guideline)
+fn normal_fall_speed(level: u64) -> Duration {
+    let n = (level - 1) as f64;
+    Duration::from_secs_f64((0.8 - n * 0.007).powf(n))
 }
 
 /// Lock down timer, following the guideline's Extended Placement rules.
@@ -139,6 +150,23 @@ impl Default for LockTimer {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn fall_speed_matches_the_guideline_table() {
+        let millis = |level| normal_fall_speed(level).as_secs_f64() * 1000.0;
+        assert_eq!(millis(1), 1000.0);
+        assert!((millis(2) - 793.0).abs() < 0.5);
+        assert!((millis(10) - 64.0).abs() < 0.5);
+        assert!((millis(15) - 7.0).abs() < 0.5);
+    }
+
+    #[test]
+    fn soft_drop_is_20x_faster_than_normal_fall_speed() {
+        let mut fall = FallTimer::new();
+        fall.set_level(2);
+        fall.soft_drop();
+        assert_eq!(fall.duration(), normal_fall_speed(2) / 20);
+    }
 
     /// A lock timer for a piece at row 10 that has been on a surface for 0.4s
     fn landed_lock_timer() -> LockTimer {

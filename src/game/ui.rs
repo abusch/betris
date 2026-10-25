@@ -24,31 +24,54 @@ pub fn game_font(size: f32) -> impl Scene {
 
 fn setup(mut commands: Commands) {
     commands.spawn_scene(bsn! {
-        #Score
+        #Hud
         DespawnOnExit<Screen>(Screen::Gameplay)
-        Text("Score: ")
-        TextLayout::no_wrap()
-        @game_font(40.0)
-        TextColor(Color::WHITE)
         Node {
             position_type: PositionType::Absolute,
             top: px(5.0),
             left: px(5.0),
+            flex_direction: FlexDirection::Column,
         }
         Children [
-            TextSpan("")
-            ScoreText
-            @game_font(40.0)
+            @counter("Score: ", Counter::Score)
+            --
+            @counter("Level: ", Counter::Level)
+            --
+            @counter("Lines: ", Counter::Lines)
         ]
     });
 }
 
-#[derive(Default, Copy, Clone, Component)]
-struct ScoreText;
+/// A line of the HUD showing the given label followed by the counter's value
+fn counter(label: &'static str, counter: Counter) -> impl Scene {
+    bsn! {
+        Text(label)
+        TextLayout::no_wrap()
+        @game_font(40.0)
+        TextColor(Color::WHITE)
+        Children [
+            TextSpan("")
+            counter
+            @game_font(40.0)
+        ]
+    }
+}
 
-fn update(score: Res<Score>, mut text: Query<&mut TextSpan, With<ScoreText>>) {
-    if let Ok(mut score_text) = text.single_mut() {
-        score_text.0 = score.formatted();
+/// The value displayed by a HUD text span
+#[derive(Copy, Clone, Component)]
+enum Counter {
+    Score,
+    Level,
+    Lines,
+}
+
+fn update(score: Res<Score>, mut texts: Query<(&mut TextSpan, &Counter)>) {
+    for (mut text, counter) in &mut texts {
+        text.0 = match counter {
+            Counter::Score => score.formatted(),
+            Counter::Level => score.level().to_string(),
+            Counter::Lines => score.lines_cleared().to_string(),
+        };
     }
 }
 
@@ -74,4 +97,29 @@ fn show_game_over(mut commands: Commands) {
             TextColor(Color::WHITE)
         ]
     });
+}
+
+#[cfg(test)]
+mod tests {
+    use bevy::ecs::system::RunSystemOnce;
+
+    use super::*;
+    use crate::game::score::ScoreEvent;
+
+    #[test]
+    fn counters_show_score_level_and_lines() {
+        let mut world = World::new();
+        let mut score = Score::default();
+        score.handle_event(&ScoreEvent::LevelStart(1));
+        score.handle_event(&ScoreEvent::Double);
+        score.handle_event(&ScoreEvent::Single);
+        world.insert_resource(score);
+        let counters = [Counter::Score, Counter::Level, Counter::Lines]
+            .map(|counter| world.spawn((TextSpan::default(), counter)).id());
+
+        world.run_system_once(update).unwrap();
+
+        let texts = counters.map(|e| world.get::<TextSpan>(e).unwrap().0.clone());
+        assert_eq!(texts, ["000400", "1", "3"]);
+    }
 }

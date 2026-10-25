@@ -4,7 +4,7 @@ use bevy::{
 };
 use bevy_enhanced_input::prelude::*;
 use input::{HardDrop, Left, Restart, Right, RotateLeft, RotateRight, SoftDrop};
-use score::ScoreEvent;
+use score::{Score, ScoreEvent};
 use spawners::{
     INITIAL_POS, Positioned,
     matrix::matrix,
@@ -207,9 +207,12 @@ fn generation_delay_elapsed(timers: Option<Res<Timers>>) -> bool {
 
 fn start_fall_timer(
     mut timers: ResMut<Timers>,
+    score: Res<Score>,
     current_piece: Single<&Positioned, With<CurrentPiece>>,
 ) {
     info!("Starting fall timer");
+    // Levels only go up when lines are cleared, which happens between pieces
+    timers.fall.set_level(score.level());
     timers.fall.normal_drop();
     // The fall timer is paused while a piece is on a surface, so it is still paused if the previous
     // piece landed before locking down
@@ -707,6 +710,7 @@ mod tests {
         // The previous piece landed, which pauses the fall timer
         timers.fall.pause();
         world.insert_resource(timers);
+        world.init_resource::<Score>();
         world.spawn((CurrentPiece, Positioned(INITIAL_POS)));
 
         world.run_system_once(start_fall_timer).unwrap();
