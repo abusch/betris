@@ -3,7 +3,7 @@ use bevy::{
     prelude::*,
 };
 use bevy_enhanced_input::prelude::*;
-use input::{HardDrop, Hold, Left, Restart, Right, RotateLeft, RotateRight, SoftDrop};
+use input::{AutoRepeat, Direction, HardDrop, Hold, Restart, RotateLeft, RotateRight, SoftDrop};
 use score::{Score, ScoreEvent};
 use spawners::{
     INITIAL_POS, Positioned,
@@ -71,9 +71,12 @@ pub fn plugin(app: &mut App) {
             Update,
             (
                 tick_timers.in_set(AppSystems::TickTimers),
-                handle_input
-                    .in_set(AppSystems::RecordInput)
-                    .run_if(in_state(Phase::Falling)),
+                (
+                    input::auto_repeat,
+                    handle_input.run_if(in_state(Phase::Falling)),
+                )
+                    .chain()
+                    .in_set(AppSystems::RecordInput),
                 restart
                     .in_set(AppSystems::RecordInput)
                     .run_if(in_state(Phase::GameOver)),
@@ -297,8 +300,7 @@ fn tick_timers(mut timers: ResMut<Timers>, time: Res<Time>) {
 fn handle_input(
     mut current_piece_query: Query<(&mut Tetrimino, &mut Positioned), With<CurrentPiece>>,
     mut state: ResMut<GameState>,
-    left: Single<&ActionEvents, With<Action<Left>>>,
-    right: Single<&ActionEvents, With<Action<Right>>>,
+    auto_repeat: Res<AutoRepeat>,
     rotate_left: Single<&ActionEvents, With<Action<RotateLeft>>>,
     rotate_right: Single<&ActionEvents, With<Action<RotateRight>>>,
     hard_drop: Single<&ActionEvents, With<Action<HardDrop>>>,
@@ -349,20 +351,16 @@ fn handle_input(
         }
     }
 
-    if left.contains(ActionEvents::FIRE) {
-        let left_pos = pos.left();
-        if current_piece.min_x(&left_pos) >= 0
-            && state.matrix.is_pos_valid(&current_piece, &left_pos)
+    if let Some(direction) = auto_repeat.movement() {
+        let new_pos = match direction {
+            Direction::Left => pos.left(),
+            Direction::Right => pos.right(),
+        };
+        if current_piece.min_x(&new_pos) >= 0
+            && current_piece.max_x(&new_pos) <= 9
+            && state.matrix.is_pos_valid(&current_piece, &new_pos)
         {
-            **pos = left_pos;
-            timers.lock.on_move();
-        }
-    } else if right.contains(ActionEvents::FIRE) {
-        let right_pos = pos.right();
-        if current_piece.max_x(&right_pos) <= 9
-            && state.matrix.is_pos_valid(&current_piece, &right_pos)
-        {
-            **pos = right_pos;
+            **pos = new_pos;
             timers.lock.on_move();
         }
     }
