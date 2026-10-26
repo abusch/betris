@@ -66,6 +66,18 @@ pub fn bindings(commands: &mut Commands) {
                 Binding(GamepadButton::DPadUp)
             ]
             --
+            Action::<Hold>::new()
+            ~Press::default()
+            Bindings [
+                Binding(KeyCode::ShiftLeft)
+                --
+                Binding(KeyCode::KeyC)
+                --
+                Binding(GamepadButton::LeftTrigger)
+                --
+                Binding(GamepadButton::RightTrigger)
+            ]
+            --
             Action::<Pause>::new()
             ~Press::default()
             Bindings [
@@ -111,6 +123,10 @@ pub struct SoftDrop;
 #[derive(Debug, InputAction)]
 #[action_output(bool)]
 pub struct HardDrop;
+
+#[derive(Debug, InputAction)]
+#[action_output(bool)]
+pub struct Hold;
 
 #[derive(Debug, InputAction)]
 #[action_output(bool)]

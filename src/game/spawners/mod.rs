@@ -2,6 +2,7 @@ use bevy::prelude::*;
 
 use crate::{game::SKYLINE, model::Pos};
 
+pub mod hold_zone;
 pub mod matrix;
 pub mod next_zone;
 pub mod piece;

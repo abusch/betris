@@ -6,6 +6,8 @@ use super::Positioned;
 
 /// Opacity of the ghost piece's minos
 const GHOST_ALPHA: f32 = 0.3;
+/// Opacity of the held piece's minos while Hold is unavailable
+pub const HELD_UNAVAILABLE_ALPHA: f32 = 0.3;
 
 /// The piece controlled by the player
 pub fn current_piece(tetrimino: Tetrimino, pos: Pos) -> impl Scene {
@@ -33,6 +35,15 @@ pub fn next_piece(tetrimino: Tetrimino) -> impl Scene {
     bsn! {
         @piece(tetrimino, Pos::ZERO, tetrimino.kind.color())
         Name("Next piece")
+    }
+}
+
+/// The piece shown in the Hold Queue
+pub fn held_piece(tetrimino: Tetrimino) -> impl Scene {
+    bsn! {
+        @piece(tetrimino, Pos::ZERO, tetrimino.kind.color())
+        Name("Held piece")
+        HeldPiece
     }
 }
 
@@ -74,6 +85,10 @@ pub struct CurrentPiece;
 /// Marker component for the ghost piece
 #[derive(Default, Clone, Component)]
 pub struct GhostPiece;
+
+/// Marker component for the piece in the Hold Queue
+#[derive(Default, Clone, Component)]
+pub struct HeldPiece;
 
 /// A mino (i.e block) which is part of a piece
 #[derive(Default, Clone, Component)]

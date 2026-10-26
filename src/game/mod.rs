@@ -3,20 +3,24 @@ use bevy::{
     prelude::*,
 };
 use bevy_enhanced_input::prelude::*;
-use input::{HardDrop, Left, Restart, Right, RotateLeft, RotateRight, SoftDrop};
+use input::{HardDrop, Hold, Left, Restart, Right, RotateLeft, RotateRight, SoftDrop};
 use score::{Score, ScoreEvent};
 use spawners::{
     INITIAL_POS, Positioned,
+    hold_zone::{HoldQueueZone, hold_zone},
     matrix::matrix,
     next_zone::{NextTetriminoZone, next_zone},
-    piece::{CurrentPiece, GhostPiece, Mino, current_piece, ghost_piece, mino, next_piece},
+    piece::{
+        CurrentPiece, GhostPiece, HELD_UNAVAILABLE_ALPHA, HeldPiece, Mino, current_piece,
+        ghost_piece, held_piece, mino, next_piece,
+    },
 };
 use timers::Timers;
 
 use self::matrix::Matrix;
 use crate::{
     AppSystems,
-    model::{Bag, Tetrimino},
+    model::{Bag, Tetrimino, TetriminoKind},
     screen::Screen,
 };
 
@@ -52,6 +56,15 @@ pub fn plugin(app: &mut App) {
             },
             (lock_down, clear_lines).chain(),
         )
+        // Holding re-enters the Falling phase, so that the new piece starts falling like a newly
+        // generated one
+        .add_systems(
+            OnTransition {
+                exited: Phase::Falling,
+                entered: Phase::Falling,
+            },
+            hold_piece,
+        )
         .add_systems(OnEnter(Phase::Generation), start_generation_timer)
         .add_systems(OnEnter(Phase::Falling), start_fall_timer)
         .add_systems(
@@ -64,8 +77,7 @@ pub fn plugin(app: &mut App) {
                 restart
                     .in_set(AppSystems::RecordInput)
                     .run_if(in_state(Phase::GameOver)),
-                (clean_up_pieces, generate_piece)
-                    .chain()
+                generate_piece
                     .in_set(AppSystems::Update)
                     .run_if(in_state(Phase::Generation))
                     .run_if(generation_delay_elapsed),
@@ -78,6 +90,7 @@ pub fn plugin(app: &mut App) {
                 update_ghost.run_if(in_state(Phase::Falling)),
                 update_mino_offsets,
                 update_transforms,
+                update_held_piece_color.run_if(resource_changed::<GameState>),
             )
                 .chain()
                 .in_set(AppSystems::Update)
@@ -121,6 +134,11 @@ pub struct GameState {
     pub bag: Bag,
     pub is_soft_dropping: bool,
     pub lines_soft_dropped: u8,
+    /// The piece in the Hold Queue
+    pub held: Option<TetriminoKind>,
+    /// Whether the player has used Hold since the last lock down. A piece must lock down between
+    /// Holds.
+    pub has_held: bool,
 }
 
 /// A static block that has been committed to the matrix.
@@ -142,6 +160,7 @@ fn game_setup(
 
     state.matrix.root_entity = commands.spawn_scene(matrix()).id();
     commands.spawn_scene(next_zone());
+    commands.spawn_scene(hold_zone());
     input::bindings(&mut commands);
 
     event_writer.write(ScoreEvent::LevelStart(1));
@@ -153,13 +172,6 @@ fn game_cleanup(mut commands: Commands, mut state: ResMut<GameState>) {
     *state = GameState::default();
 }
 
-fn clean_up_pieces(mut commands: Commands, pieces: Query<Entity, With<Tetrimino>>) {
-    for piece in pieces.into_iter() {
-        info!("Despawning tetrimino");
-        commands.entity(piece).despawn();
-    }
-}
-
 fn generate_piece(
     mut commands: Commands,
     mut state: ResMut<GameState>,
@@ -167,30 +179,86 @@ fn generate_piece(
     next_zone: Query<Entity, With<NextTetriminoZone>>,
 ) -> Result {
     let next_zone_entity = next_zone.single()?;
-    let tetrimino: Tetrimino = state.bag.pop_next().into();
-    let next: Tetrimino = state.bag.peek_next().into();
+    let tetrimino = pop_next_piece(&mut commands, &mut state.bag, next_zone_entity);
 
     info!("Generating new tetrimino {:?}", tetrimino.kind);
 
-    if !state.matrix.is_pos_valid(&tetrimino, &INITIAL_POS) {
-        info!("Block out!");
+    if spawn_piece(&mut commands, &state.matrix, tetrimino) {
+        next_phase.set(Phase::Falling);
+    } else {
         next_phase.set(Phase::GameOver);
-        return Ok(());
+    }
+
+    Ok(())
+}
+
+/// Take the next piece out of the bag, and show the one after it in the Next Queue.
+fn pop_next_piece(commands: &mut Commands, bag: &mut Bag, next_zone: Entity) -> Tetrimino {
+    let tetrimino = bag.pop_next().into();
+    let next: Tetrimino = bag.peek_next().into();
+    commands.entity(next_zone).despawn_related::<Children>();
+    commands.spawn_scene(bsn! { @next_piece(next) ChildOf(next_zone) });
+    tetrimino
+}
+
+/// Spawn `tetrimino` at its generation position, along with its ghost piece. Returns `false` if
+/// an existing block is in the way, i.e. on a Block out.
+fn spawn_piece(commands: &mut Commands, matrix: &Matrix, tetrimino: Tetrimino) -> bool {
+    if !matrix.is_pos_valid(&tetrimino, &INITIAL_POS) {
+        info!("Block out!");
+        return false;
     }
 
     // The piece drops one row as soon as it is generated, unless something is in its way
     let mut pos = INITIAL_POS;
-    if state.matrix.is_pos_valid(&tetrimino, &pos.down()) {
+    if matrix.is_pos_valid(&tetrimino, &pos.down()) {
         pos = pos.down();
     }
-    let root = state.matrix.root_entity;
+    let root = matrix.root_entity;
     commands.spawn_scene(bsn! { @current_piece(tetrimino, pos) ChildOf(root) });
-    let ghost_pos = state.matrix.lowest_valid_pos(&tetrimino, &pos);
+    let ghost_pos = matrix.lowest_valid_pos(&tetrimino, &pos);
     commands.spawn_scene(bsn! { @ghost_piece(tetrimino, ghost_pos) ChildOf(root) });
 
-    commands.spawn_scene(bsn! { @next_piece(next) ChildOf(next_zone_entity) });
+    true
+}
 
-    next_phase.set(Phase::Falling);
+/// Hold: put the current piece in the Hold Queue, and spawn the previously held piece in its place,
+/// or the next piece if nothing was held.
+fn hold_piece(
+    mut commands: Commands,
+    mut state: ResMut<GameState>,
+    mut next_phase: ResMut<NextState<Phase>>,
+    current_piece: Query<(Entity, &Tetrimino), With<CurrentPiece>>,
+    ghost_piece: Query<Entity, With<GhostPiece>>,
+    hold_zone: Query<Entity, With<HoldQueueZone>>,
+    next_zone: Query<Entity, With<NextTetriminoZone>>,
+) -> Result {
+    let (entity, current) = current_piece.single()?;
+    let hold_zone_entity = hold_zone.single()?;
+    let next_zone_entity = next_zone.single()?;
+    info!("Holding tetrimino {:?}", current.kind);
+
+    commands.entity(entity).despawn();
+    for ghost in &ghost_piece {
+        commands.entity(ghost).despawn();
+    }
+
+    // Held pieces are shown, and come back out, north facing
+    let held: Tetrimino = current.kind.into();
+    commands
+        .entity(hold_zone_entity)
+        .despawn_related::<Children>();
+    commands.spawn_scene(bsn! { @held_piece(held) ChildOf(hold_zone_entity) });
+
+    let tetrimino = match state.held.replace(current.kind) {
+        Some(kind) => kind.into(),
+        None => pop_next_piece(&mut commands, &mut state.bag, next_zone_entity),
+    };
+    state.has_held = true;
+
+    if !spawn_piece(&mut commands, &state.matrix, tetrimino) {
+        next_phase.set(Phase::GameOver);
+    }
 
     Ok(())
 }
@@ -235,6 +303,7 @@ fn handle_input(
     rotate_right: Single<&ActionEvents, With<Action<RotateRight>>>,
     hard_drop: Single<&ActionEvents, With<Action<HardDrop>>>,
     soft_drop: Single<&ActionEvents, With<Action<SoftDrop>>>,
+    hold: Single<&ActionEvents, With<Action<Hold>>>,
     mut timers: ResMut<Timers>,
     mut next_phase: ResMut<NextState<Phase>>,
     mut score_messages: MessageWriter<ScoreEvent>,
@@ -244,6 +313,12 @@ fn handle_input(
     // If lock timer has expired -> lock down (see the `Falling -> Generation` transition)
     if timers.lock.times_finished_this_tick() > 0 {
         next_phase.set(Phase::Generation);
+        return Ok(());
+    }
+
+    if hold.contains(ActionEvents::FIRE) && !state.has_held {
+        // See the `Falling -> Falling` transition
+        next_phase.set(Phase::Falling);
         return Ok(());
     }
 
@@ -372,6 +447,26 @@ fn update_mino_offsets(
     }
 }
 
+/// Dim the held piece while Hold is unavailable, i.e. until the current piece locks down.
+fn update_held_piece_color(
+    state: Res<GameState>,
+    held_piece: Query<(&Tetrimino, &Children), With<HeldPiece>>,
+    mut minos: Query<&mut Sprite, With<Mino>>,
+) {
+    for (piece, children) in &held_piece {
+        let color = if state.has_held {
+            piece.kind.color().with_alpha(HELD_UNAVAILABLE_ALPHA)
+        } else {
+            piece.kind.color()
+        };
+        for child in children.iter() {
+            if let Ok(mut sprite) = minos.get_mut(child) {
+                sprite.color = color;
+            }
+        }
+    }
+}
+
 /// Update the Transform of pieces and blocks based on their grid position.
 ///
 /// A piece's position is the position (in grid coordinates) of its "visual center". The minos
@@ -417,6 +512,7 @@ fn lock_down(
     for ghost in &ghost_piece {
         commands.entity(ghost).despawn();
     }
+    state.has_held = false;
 
     if piece.min_y(piece_pos) >= SKYLINE {
         info!("Lock out!");
@@ -431,6 +527,7 @@ fn restart(
     mut commands: Commands,
     restart: Single<&ActionEvents, With<Action<Restart>>>,
     blocks: Query<Entity, With<Block>>,
+    hold_zone: Query<Entity, With<HoldQueueZone>>,
     mut state: ResMut<GameState>,
     mut next_phase: ResMut<NextState<Phase>>,
     mut score_messages: MessageWriter<ScoreEvent>,
@@ -441,6 +538,9 @@ fn restart(
 
     for block in &blocks {
         commands.entity(block).despawn();
+    }
+    for zone in &hold_zone {
+        commands.entity(zone).despawn_related::<Children>();
     }
     let root_entity = state.matrix.root_entity;
     *state = GameState::default();
@@ -569,7 +669,8 @@ mod tests {
         app
     }
 
-    fn lock_piece(tetrimino: Tetrimino, pos: Pos) -> App {
+    /// An app with `tetrimino` in play at `pos`
+    fn piece_app(tetrimino: Tetrimino, pos: Pos) -> App {
         let mut app = scene_app();
         let world = app.world_mut();
         world.init_resource::<GameState>();
@@ -577,13 +678,118 @@ mod tests {
         world.insert_resource(GameAssets {
             impact: Handle::default(),
         });
+        world.spawn(NextTetriminoZone);
+        world.spawn(HoldQueueZone);
         let root = world.spawn_empty().id();
         world.resource_mut::<GameState>().matrix.root_entity = root;
         world.spawn((CurrentPiece, tetrimino, Positioned(pos)));
+        app
+    }
 
-        let result: Result = world.run_system_once(lock_down).unwrap();
+    fn lock_piece(tetrimino: Tetrimino, pos: Pos) -> App {
+        let mut app = piece_app(tetrimino, pos);
+        let result: Result = app.world_mut().run_system_once(lock_down).unwrap();
         result.unwrap();
         app
+    }
+
+    fn hold(app: &mut App) {
+        let result: Result = app.world_mut().run_system_once(hold_piece).unwrap();
+        result.unwrap();
+    }
+
+    fn current_piece(world: &mut World) -> Tetrimino {
+        *world
+            .query_filtered::<&Tetrimino, With<CurrentPiece>>()
+            .single(world)
+            .unwrap()
+    }
+
+    #[test]
+    fn first_hold_brings_in_the_next_piece() {
+        let mut app = piece_app(TetriminoKind::T.into(), Pos::new(4, 5));
+        let next = app.world().resource::<GameState>().bag.peek_next();
+
+        hold(&mut app);
+
+        let world = app.world_mut();
+        assert_eq!(current_piece(world), next.into());
+        let state = world.resource::<GameState>();
+        assert_eq!(state.held, Some(TetriminoKind::T));
+        assert!(state.has_held);
+    }
+
+    #[test]
+    fn hold_swaps_with_the_held_piece_north_facing() {
+        let mut app = piece_app(
+            Tetrimino::from(TetriminoKind::T).rotated_cw(),
+            Pos::new(4, 5),
+        );
+        app.world_mut().resource_mut::<GameState>().held = Some(TetriminoKind::I);
+
+        hold(&mut app);
+
+        let world = app.world_mut();
+        assert_eq!(current_piece(world), TetriminoKind::I.into());
+        let held_pieces: Vec<_> = world
+            .query::<(&Tetrimino, &ChildOf)>()
+            .iter(world)
+            .filter(|(_, child_of)| world.get::<HoldQueueZone>(child_of.parent()).is_some())
+            .map(|(tetrimino, _)| *tetrimino)
+            .collect();
+        assert_eq!(held_pieces, [TetriminoKind::T.into()]);
+        assert_eq!(world.resource::<GameState>().held, Some(TetriminoKind::T));
+    }
+
+    #[test]
+    fn held_piece_blocked_at_generation_is_block_out() {
+        let mut app = piece_app(TetriminoKind::T.into(), Pos::new(4, 5));
+        let world = app.world_mut();
+        world.resource_mut::<GameState>().held = Some(TetriminoKind::I);
+        for x in 0..MATRIX_WIDTH as i8 {
+            spawn_block(world, Pos::new(x, INITIAL_POS.y));
+        }
+
+        hold(&mut app);
+
+        assert!(is_game_over(app.world()));
+    }
+
+    #[test]
+    fn locking_down_allows_holding_again() {
+        let mut app = piece_app(TetriminoKind::T.into(), Pos::new(4, 0));
+        app.world_mut().resource_mut::<GameState>().has_held = true;
+
+        let result: Result = app.world_mut().run_system_once(lock_down).unwrap();
+        result.unwrap();
+
+        assert!(!app.world().resource::<GameState>().has_held);
+    }
+
+    fn held_mino_colors(app: &mut App) -> Vec<Color> {
+        app.world_mut()
+            .run_system_once(update_held_piece_color)
+            .unwrap();
+        let world = app.world_mut();
+        world
+            .query::<(&Sprite, &ChildOf)>()
+            .iter(world)
+            .filter(|(_, child_of)| world.get::<HeldPiece>(child_of.parent()).is_some())
+            .map(|(sprite, _)| sprite.color)
+            .collect()
+    }
+
+    #[test]
+    fn held_piece_is_dimmed_until_lock_down() {
+        let mut app = piece_app(TetriminoKind::T.into(), Pos::new(4, 5));
+
+        hold(&mut app);
+        let dimmed = TetriminoKind::T.color().with_alpha(HELD_UNAVAILABLE_ALPHA);
+        assert_eq!(held_mino_colors(&mut app), [dimmed; 4]);
+
+        let result: Result = app.world_mut().run_system_once(lock_down).unwrap();
+        result.unwrap();
+        assert_eq!(held_mino_colors(&mut app), [TetriminoKind::T.color(); 4]);
     }
 
     #[test]
@@ -650,22 +856,23 @@ mod tests {
 
     #[test]
     fn blocked_spawn_position_is_block_out() {
-        let mut world = World::new();
+        let mut app = scene_app();
+        let world = app.world_mut();
         world.init_resource::<GameState>();
         world.init_resource::<NextState<Phase>>();
         world.spawn(NextTetriminoZone);
         for x in 0..MATRIX_WIDTH as i8 {
-            spawn_block(&mut world, Pos::new(x, INITIAL_POS.y));
+            spawn_block(world, Pos::new(x, INITIAL_POS.y));
         }
 
         let result: Result = world.run_system_once(generate_piece).unwrap();
         result.unwrap();
 
-        assert!(is_game_over(&world));
+        assert!(is_game_over(world));
         assert!(
             world
                 .query_filtered::<(), With<CurrentPiece>>()
-                .iter(&world)
+                .iter(world)
                 .next()
                 .is_none()
         );
