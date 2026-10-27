@@ -104,15 +104,17 @@ mod tests {
     use bevy::ecs::system::RunSystemOnce;
 
     use super::*;
-    use crate::game::score::ScoreEvent;
+    use crate::game::score::{ScoreAction, ScoreEvent};
 
     #[test]
     fn counters_show_score_level_and_lines() {
         let mut world = World::new();
         let mut score = Score::default();
         score.handle_event(&ScoreEvent::LevelStart(1));
-        score.handle_event(&ScoreEvent::Double);
-        score.handle_event(&ScoreEvent::Single);
+        // Not consecutive, so there is no combo bonus
+        score.handle_event(&ScoreEvent::LockDown(ScoreAction::Double));
+        score.handle_event(&ScoreEvent::LockDown(ScoreAction::Lock));
+        score.handle_event(&ScoreEvent::LockDown(ScoreAction::Single));
         world.insert_resource(score);
         let counters = [Counter::Score, Counter::Level, Counter::Lines]
             .map(|counter| world.spawn((TextSpan::default(), counter)).id());

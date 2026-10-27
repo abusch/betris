@@ -4,7 +4,7 @@ use bevy::{
 };
 use bevy_enhanced_input::prelude::*;
 use input::{AutoRepeat, Direction, HardDrop, Hold, Restart, RotateLeft, RotateRight, SoftDrop};
-use score::{Score, ScoreEvent};
+use score::{Score, ScoreAction, ScoreEvent, TSpin};
 use spawners::{
     INITIAL_POS, Positioned,
     hold_zone::{HoldQueueZone, hold_zone},
@@ -141,6 +141,12 @@ pub struct GameState {
     /// Whether the player has used Hold since the last lock down. A piece must lock down between
     /// Holds.
     pub has_held: bool,
+    /// Whether the last successful move of the piece in play was a rotation, which is required
+    /// for a T-Spin
+    pub rotated_last: bool,
+    /// The T-Spin performed by the piece that just locked down, scored once its Line Clears are
+    /// known
+    pub t_spin: Option<TSpin>,
 }
 
 /// A static block that has been committed to the matrix.
@@ -257,6 +263,7 @@ fn hold_piece(
         None => pop_next_piece(&mut commands, &mut state.bag, next_zone_entity),
     };
     state.has_held = true;
+    state.rotated_last = false;
 
     if !spawn_piece(&mut commands, &state.matrix, tetrimino) {
         next_phase.set(Phase::GameOver);
@@ -347,6 +354,7 @@ fn handle_input(
                     lines_soft_dropped += 1;
                 }
                 **pos = down_pos;
+                state.rotated_last = false;
             }
         }
         if lines_soft_dropped > 0 {
@@ -358,6 +366,7 @@ fn handle_input(
         let rotated = current_piece.rotated_ccw();
         if state.matrix.is_pos_valid(&rotated, &pos) {
             *current_piece = rotated;
+            state.rotated_last = true;
             timers.lock.on_move();
         }
     }
@@ -365,6 +374,7 @@ fn handle_input(
         let rotated = current_piece.rotated_cw();
         if state.matrix.is_pos_valid(&rotated, &pos) {
             *current_piece = rotated;
+            state.rotated_last = true;
             timers.lock.on_move();
         }
     }
@@ -379,6 +389,7 @@ fn handle_input(
             && state.matrix.is_pos_valid(&current_piece, &new_pos)
         {
             **pos = new_pos;
+            state.rotated_last = false;
             timers.lock.on_move();
         }
     }
@@ -386,6 +397,9 @@ fn handle_input(
         let previous_pos = **pos;
         **pos = state.matrix.lowest_valid_pos(&current_piece, &pos);
         let n = (previous_pos.y - pos.y) as u8;
+        if n > 0 {
+            state.rotated_last = false;
+        }
         score_messages.write(ScoreEvent::HardDrop(n));
         // A hard dropped piece locks down immediately
         next_phase.set(Phase::Generation);
@@ -493,6 +507,14 @@ fn lock_down(
 ) -> Result {
     let (entity, piece_pos, piece) = current_piece.single()?;
     info!("Locking piece");
+
+    // Recognise T-Spins before the piece becomes part of the Matrix
+    state.t_spin = if state.rotated_last {
+        state.matrix.t_spin(piece, piece_pos)
+    } else {
+        None
+    };
+    state.rotated_last = false;
     commands.spawn((
         AudioPlayer(assets.impact.clone()),
         PlaybackSettings::DESPAWN,
@@ -553,7 +575,8 @@ fn restart(
     next_phase.set(Phase::Generation);
 }
 
-/// Pattern and Eliminate phases: remove full lines and collapse the blocks above them.
+/// Pattern and Eliminate phases: remove full lines and collapse the blocks above them, then score
+/// the lock down.
 fn clear_lines(
     mut commands: Commands,
     mut state: ResMut<GameState>,
@@ -561,6 +584,17 @@ fn clear_lines(
     mut event_writer: MessageWriter<ScoreEvent>,
 ) {
     let lines = state.matrix.full_lines();
+    let t_spin = state.t_spin.take();
+    match ScoreAction::new(lines.len(), t_spin) {
+        Some(action) => {
+            info!("Scoring {action:?}");
+            event_writer.write(ScoreEvent::LockDown(action));
+        }
+        None => warn!(
+            "How did we complete {} lines with {t_spin:?}?!?",
+            lines.len()
+        ),
+    }
     if lines.is_empty() {
         return;
     }
@@ -585,22 +619,6 @@ fn clear_lines(
         } else {
             warn!("Missing entity {entity}");
         }
-    }
-
-    match lines.len() {
-        1 => {
-            event_writer.write(ScoreEvent::Single);
-        }
-        2 => {
-            event_writer.write(ScoreEvent::Double);
-        }
-        3 => {
-            event_writer.write(ScoreEvent::Triple);
-        }
-        4 => {
-            event_writer.write(ScoreEvent::Tetris);
-        }
-        n => warn!("How did we complete {n} lines?!?"),
     }
 }
 
@@ -651,7 +669,7 @@ mod tests {
             .iter_current_update_messages()
             .copied()
             .collect();
-        assert_eq!(messages, [ScoreEvent::Single]);
+        assert_eq!(messages, [ScoreEvent::LockDown(ScoreAction::Single)]);
     }
 
     fn is_game_over(world: &World) -> bool {
@@ -827,6 +845,70 @@ mod tests {
         let matrix = &world.resource::<GameState>().matrix;
         assert_eq!(matrix.root_entity, Entity::PLACEHOLDER);
         assert_eq!(matrix.iter_non_empty().count(), 0);
+    }
+
+    /// Lock down a south facing T into a T-Slot that completes the two bottom lines, and return
+    /// the resulting score event
+    fn lock_t_into_t_slot(rotated_last: bool) -> Vec<ScoreEvent> {
+        let mut app = piece_app(
+            Tetrimino::from(TetriminoKind::T).rotated_cw().rotated_cw(),
+            Pos::new(1, 1),
+        );
+        let world = app.world_mut();
+        world.init_resource::<Messages<ScoreEvent>>();
+        world.resource_mut::<GameState>().rotated_last = rotated_last;
+        for x in (0..MATRIX_WIDTH as i8).filter(|&x| x != 1) {
+            spawn_block(world, Pos::new(x, 0));
+        }
+        for x in 3..MATRIX_WIDTH as i8 {
+            spawn_block(world, Pos::new(x, 1));
+        }
+        // Overhang over the T-Slot
+        spawn_block(world, Pos::new(2, 2));
+
+        let result: Result = world.run_system_once(lock_down).unwrap();
+        result.unwrap();
+        world.run_system_once(clear_lines).unwrap();
+
+        world
+            .resource::<Messages<ScoreEvent>>()
+            .iter_current_update_messages()
+            .copied()
+            .collect()
+    }
+
+    #[test]
+    fn rotating_into_a_t_slot_is_a_t_spin() {
+        assert_eq!(
+            lock_t_into_t_slot(true),
+            [ScoreEvent::LockDown(ScoreAction::TSpinDouble)]
+        );
+    }
+
+    #[test]
+    fn moving_into_a_t_slot_is_not_a_t_spin() {
+        assert_eq!(
+            lock_t_into_t_slot(false),
+            [ScoreEvent::LockDown(ScoreAction::Double)]
+        );
+    }
+
+    #[test]
+    fn locking_without_clearing_lines_is_scored() {
+        let mut app = piece_app(TetriminoKind::T.into(), Pos::new(4, 0));
+        let world = app.world_mut();
+        world.init_resource::<Messages<ScoreEvent>>();
+
+        let result: Result = world.run_system_once(lock_down).unwrap();
+        result.unwrap();
+        world.run_system_once(clear_lines).unwrap();
+
+        let messages: Vec<_> = world
+            .resource::<Messages<ScoreEvent>>()
+            .iter_current_update_messages()
+            .copied()
+            .collect();
+        assert_eq!(messages, [ScoreEvent::LockDown(ScoreAction::Lock)]);
     }
 
     #[test]
