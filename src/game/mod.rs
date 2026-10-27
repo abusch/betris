@@ -20,7 +20,7 @@ use timers::Timers;
 use self::matrix::Matrix;
 use crate::{
     AppSystems,
-    model::{Bag, Tetrimino, TetriminoKind},
+    model::{Bag, Rotation, Tetrimino, TetriminoKind},
     screen::Screen,
 };
 
@@ -141,9 +141,9 @@ pub struct GameState {
     /// Whether the player has used Hold since the last lock down. A piece must lock down between
     /// Holds.
     pub has_held: bool,
-    /// Whether the last successful move of the piece in play was a rotation, which is required
-    /// for a T-Spin
-    pub rotated_last: bool,
+    /// The Rotation Point (1 to 5) used if the last successful move of the piece in play was a
+    /// rotation, which is required for a T-Spin
+    pub last_rotation_point: Option<u8>,
     /// The T-Spin performed by the piece that just locked down, scored once its Line Clears are
     /// known
     pub t_spin: Option<TSpin>,
@@ -263,7 +263,7 @@ fn hold_piece(
         None => pop_next_piece(&mut commands, &mut state.bag, next_zone_entity),
     };
     state.has_held = true;
-    state.rotated_last = false;
+    state.last_rotation_point = None;
 
     if !spawn_piece(&mut commands, &state.matrix, tetrimino) {
         next_phase.set(Phase::GameOver);
@@ -354,7 +354,7 @@ fn handle_input(
                     lines_soft_dropped += 1;
                 }
                 **pos = down_pos;
-                state.rotated_last = false;
+                state.last_rotation_point = None;
             }
         }
         if lines_soft_dropped > 0 {
@@ -362,19 +362,18 @@ fn handle_input(
         }
     }
 
-    if rotate_left.contains(ActionEvents::FIRE) {
-        let rotated = current_piece.rotated_ccw();
-        if state.matrix.is_pos_valid(&rotated, &pos) {
-            *current_piece = rotated;
-            state.rotated_last = true;
-            timers.lock.on_move();
+    for (rotate, rotation) in [
+        (*rotate_left, Rotation::CounterClockwise),
+        (*rotate_right, Rotation::Clockwise),
+    ] {
+        if !rotate.contains(ActionEvents::FIRE) {
+            continue;
         }
-    }
-    if rotate_right.contains(ActionEvents::FIRE) {
-        let rotated = current_piece.rotated_cw();
-        if state.matrix.is_pos_valid(&rotated, &pos) {
+        if let Some((rotated, new_pos, point)) = state.matrix.rotate(&current_piece, &pos, rotation)
+        {
             *current_piece = rotated;
-            state.rotated_last = true;
+            **pos = new_pos;
+            state.last_rotation_point = Some(point);
             timers.lock.on_move();
         }
     }
@@ -389,7 +388,7 @@ fn handle_input(
             && state.matrix.is_pos_valid(&current_piece, &new_pos)
         {
             **pos = new_pos;
-            state.rotated_last = false;
+            state.last_rotation_point = None;
             timers.lock.on_move();
         }
     }
@@ -398,7 +397,7 @@ fn handle_input(
         **pos = state.matrix.lowest_valid_pos(&current_piece, &pos);
         let n = (previous_pos.y - pos.y) as u8;
         if n > 0 {
-            state.rotated_last = false;
+            state.last_rotation_point = None;
         }
         score_messages.write(ScoreEvent::HardDrop(n));
         // A hard dropped piece locks down immediately
@@ -509,12 +508,10 @@ fn lock_down(
     info!("Locking piece");
 
     // Recognise T-Spins before the piece becomes part of the Matrix
-    state.t_spin = if state.rotated_last {
-        state.matrix.t_spin(piece, piece_pos)
-    } else {
-        None
-    };
-    state.rotated_last = false;
+    state.t_spin = state
+        .last_rotation_point
+        .and_then(|point| state.matrix.t_spin(piece, piece_pos, point));
+    state.last_rotation_point = None;
     commands.spawn((
         AudioPlayer(assets.impact.clone()),
         PlaybackSettings::DESPAWN,
@@ -849,14 +846,14 @@ mod tests {
 
     /// Lock down a south facing T into a T-Slot that completes the two bottom lines, and return
     /// the resulting score event
-    fn lock_t_into_t_slot(rotated_last: bool) -> Vec<ScoreEvent> {
+    fn lock_t_into_t_slot(last_rotation_point: Option<u8>) -> Vec<ScoreEvent> {
         let mut app = piece_app(
             Tetrimino::from(TetriminoKind::T).rotated_cw().rotated_cw(),
             Pos::new(1, 1),
         );
         let world = app.world_mut();
         world.init_resource::<Messages<ScoreEvent>>();
-        world.resource_mut::<GameState>().rotated_last = rotated_last;
+        world.resource_mut::<GameState>().last_rotation_point = last_rotation_point;
         for x in (0..MATRIX_WIDTH as i8).filter(|&x| x != 1) {
             spawn_block(world, Pos::new(x, 0));
         }
@@ -880,7 +877,7 @@ mod tests {
     #[test]
     fn rotating_into_a_t_slot_is_a_t_spin() {
         assert_eq!(
-            lock_t_into_t_slot(true),
+            lock_t_into_t_slot(Some(1)),
             [ScoreEvent::LockDown(ScoreAction::TSpinDouble)]
         );
     }
@@ -888,7 +885,7 @@ mod tests {
     #[test]
     fn moving_into_a_t_slot_is_not_a_t_spin() {
         assert_eq!(
-            lock_t_into_t_slot(false),
+            lock_t_into_t_slot(None),
             [ScoreEvent::LockDown(ScoreAction::Double)]
         );
     }

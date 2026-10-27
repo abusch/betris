@@ -2,7 +2,10 @@ use bevy::{color::palettes, prelude::*};
 use num_enum::TryFromPrimitive;
 use rand::rng;
 
-use super::{data::OFFSETS, pos::Pos};
+use super::{
+    data::{I_ROTATION_POINTS, JLSTZ_ROTATION_POINTS, O_ROTATION_POINTS, OFFSETS},
+    pos::Pos,
+};
 
 const YELLOW: Srgba = palettes::css::YELLOW;
 const LIGHT_BLUE: Srgba = palettes::css::BLUE;
@@ -52,6 +55,24 @@ impl Tetrimino {
         let mut rotated = *self;
         rotated.rotate_ccw();
         rotated
+    }
+
+    pub fn rotated(&self, rotation: Rotation) -> Self {
+        match rotation {
+            Rotation::Clockwise => self.rotated_cw(),
+            Rotation::CounterClockwise => self.rotated_ccw(),
+        }
+    }
+
+    /// The offsets of Rotation Points 1 to 5 of the Super Rotation System, to try in order when
+    /// rotating in the given direction (see section A1.4 of the guideline)
+    pub fn rotation_points(&self, rotation: Rotation) -> &'static [Pos; 5] {
+        let points = match self.kind {
+            TetriminoKind::O => return &O_ROTATION_POINTS,
+            TetriminoKind::I => &I_ROTATION_POINTS,
+            _ => &JLSTZ_ROTATION_POINTS,
+        };
+        &points[self.facing as usize][rotation as usize]
     }
 
     pub fn min_y(&self, pos: &Pos) -> i8 {
@@ -152,6 +173,13 @@ impl Facing {
             Facing::West => Facing::South,
         }
     }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[repr(u8)]
+pub enum Rotation {
+    Clockwise = 0,
+    CounterClockwise = 1,
 }
 
 #[derive(Reflect)]
