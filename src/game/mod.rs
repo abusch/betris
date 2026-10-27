@@ -136,7 +136,6 @@ pub struct GameState {
     pub matrix: Matrix,
     pub bag: Bag,
     pub is_soft_dropping: bool,
-    pub lines_soft_dropped: u8,
     /// The piece in the Hold Queue
     pub held: Option<TetriminoKind>,
     /// Whether the player has used Hold since the last lock down. A piece must lock down between
@@ -278,13 +277,16 @@ fn generation_delay_elapsed(timers: Option<Res<Timers>>) -> bool {
 
 fn start_fall_timer(
     mut timers: ResMut<Timers>,
+    mut state: ResMut<GameState>,
     score: Res<Score>,
     current_piece: Single<&Positioned, With<CurrentPiece>>,
 ) {
     info!("Starting fall timer");
     // Levels only go up when lines are cleared, which happens between pieces
     timers.fall.set_level(score.level());
+    // `handle_input` switches back to soft drop if the button is still held
     timers.fall.normal_drop();
+    state.is_soft_dropping = false;
     // The fall timer is paused while a piece is on a surface, so it is still paused if the previous
     // piece landed before locking down
     timers.fall.unpause();
@@ -324,15 +326,31 @@ fn handle_input(
         return Ok(());
     }
 
+    // Soft drop continues to the next piece for as long as the button is held, so follow whether
+    // it is held rather than when it is pressed or released
+    let soft_drop_held = soft_drop.contains(ActionEvents::FIRE);
+    if soft_drop_held != state.is_soft_dropping {
+        state.is_soft_dropping = soft_drop_held;
+        if soft_drop_held {
+            timers.fall.soft_drop();
+        } else {
+            timers.fall.normal_drop();
+        }
+    }
+
     if timers.lock.is_paused() {
+        let mut lines_soft_dropped = 0;
         for _ in 0..timers.fall.times_finished_this_tick() {
             let down_pos = pos.down();
             if state.matrix.is_pos_valid(&current_piece, &down_pos) {
                 if state.is_soft_dropping {
-                    state.lines_soft_dropped += 1;
+                    lines_soft_dropped += 1;
                 }
                 **pos = down_pos;
             }
+        }
+        if lines_soft_dropped > 0 {
+            score_messages.write(ScoreEvent::SoftDrop(lines_soft_dropped));
         }
     }
 
@@ -373,19 +391,6 @@ fn handle_input(
         next_phase.set(Phase::Generation);
         return Ok(());
     }
-    if soft_drop.contains(ActionEvents::START) {
-        state.is_soft_dropping = true;
-        state.lines_soft_dropped = 0;
-        timers.fall.soft_drop();
-    } else if soft_drop.contains(ActionEvents::COMPLETE) {
-        state.is_soft_dropping = false;
-        if state.lines_soft_dropped > 0 {
-            score_messages.write(ScoreEvent::SoftDrop(state.lines_soft_dropped));
-            state.lines_soft_dropped = 0;
-        }
-        timers.fall.normal_drop();
-    }
-
     timers.lock.on_fall(pos.y);
 
     if state.matrix.is_on_surface(&current_piece, &pos) {
@@ -908,6 +913,80 @@ mod tests {
         assert_eq!(bounds(TetriminoKind::O), (5, 6, 21, 22));
     }
 
+    /// An app with a piece falling, where only the soft drop button is held
+    fn soft_drop_app() -> App {
+        let mut app = piece_app(TetriminoKind::T.into(), Pos::new(4, 10));
+        let world = app.world_mut();
+        world.init_resource::<Timers>();
+        world.init_resource::<Score>();
+        world.init_resource::<AutoRepeat>();
+        world.init_resource::<Messages<ScoreEvent>>();
+        world.spawn((Action::<RotateLeft>::new(), ActionEvents::empty()));
+        world.spawn((Action::<RotateRight>::new(), ActionEvents::empty()));
+        world.spawn((Action::<HardDrop>::new(), ActionEvents::empty()));
+        world.spawn((Action::<Hold>::new(), ActionEvents::empty()));
+        world.spawn((Action::<SoftDrop>::new(), ActionEvents::FIRE));
+        app
+    }
+
+    fn run_handle_input(world: &mut World) {
+        let result: Result = world.run_system_once(handle_input).unwrap();
+        result.unwrap();
+    }
+
+    fn score_messages(world: &mut World) -> Vec<ScoreEvent> {
+        world
+            .resource_mut::<Messages<ScoreEvent>>()
+            .drain()
+            .collect()
+    }
+
+    #[test]
+    fn soft_drop_is_scored_while_the_button_is_held() {
+        let mut app = soft_drop_app();
+        let world = app.world_mut();
+
+        run_handle_input(world);
+
+        assert_eq!(score_messages(world), [ScoreEvent::SoftDrop(1)]);
+    }
+
+    #[test]
+    fn soft_drop_continues_to_the_next_piece() {
+        let mut app = soft_drop_app();
+        let world = app.world_mut();
+        run_handle_input(world);
+        score_messages(world);
+
+        // A new piece starts falling with the button still held
+        world.run_system_once(start_fall_timer).unwrap();
+        run_handle_input(world);
+
+        assert_eq!(score_messages(world), [ScoreEvent::SoftDrop(1)]);
+        let mut soft_drop_timer = timers::FallTimer::new();
+        soft_drop_timer.soft_drop();
+        let timers = world.resource::<Timers>();
+        assert_eq!(timers.fall.duration(), soft_drop_timer.duration());
+    }
+
+    #[test]
+    fn falling_after_releasing_soft_drop_is_not_scored() {
+        let mut app = soft_drop_app();
+        let world = app.world_mut();
+        run_handle_input(world);
+        score_messages(world);
+
+        let mut soft_drop = world.query_filtered::<&mut ActionEvents, With<Action<SoftDrop>>>();
+        *soft_drop.single_mut(world).unwrap() = ActionEvents::empty();
+        run_handle_input(world);
+        let fall_duration = world.resource::<Timers>().fall.duration();
+        world.resource_mut::<Timers>().tick(fall_duration);
+        run_handle_input(world);
+
+        assert!(!world.resource::<GameState>().is_soft_dropping);
+        assert_eq!(score_messages(world), []);
+    }
+
     #[test]
     fn new_piece_falls_even_if_previous_one_landed() {
         let mut world = World::new();
@@ -916,6 +995,7 @@ mod tests {
         timers.fall.pause();
         world.insert_resource(timers);
         world.init_resource::<Score>();
+        world.init_resource::<GameState>();
         world.spawn((CurrentPiece, Positioned(INITIAL_POS)));
 
         world.run_system_once(start_fall_timer).unwrap();
