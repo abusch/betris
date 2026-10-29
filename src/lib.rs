@@ -1,5 +1,11 @@
 use bevy::{
-    camera::Hdr, core_pipeline::tonemapping::Tonemapping, post_process::bloom::Bloom, prelude::*,
+    camera::Hdr,
+    core_pipeline::tonemapping::Tonemapping,
+    post_process::{
+        bloom::Bloom,
+        effect_stack::{ChromaticAberration, LensDistortion},
+    },
+    prelude::*,
 };
 
 #[cfg(feature = "dev")]
@@ -48,5 +54,12 @@ enum AppSystems {
 }
 
 fn setup(mut commands: Commands) {
-    commands.spawn((Camera2d, Hdr, Tonemapping::TonyMcMapface, Bloom::NATURAL));
+    commands.spawn((
+        Camera2d,
+        Hdr,
+        Tonemapping::TonyMcMapface,
+        Bloom::NATURAL,
+        ChromaticAberration::default(),
+        LensDistortion::default(),
+    ));
 }

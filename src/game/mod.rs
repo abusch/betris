@@ -582,15 +582,14 @@ fn clear_lines(
 ) {
     let lines = state.matrix.full_lines();
     let t_spin = state.t_spin.take();
-    match ScoreAction::new(lines.len(), t_spin) {
-        Some(action) => {
-            info!("Scoring {action:?}");
-            event_writer.write(ScoreEvent::LockDown(action));
-        }
-        None => warn!(
+    if let Some(action) = ScoreAction::new(lines.len(), t_spin) {
+        info!("Scoring {action:?}");
+        event_writer.write(ScoreEvent::LockDown(action));
+    } else {
+        warn!(
             "How did we complete {} lines with {t_spin:?}?!?",
             lines.len()
-        ),
+        )
     }
     if lines.is_empty() {
         return;
