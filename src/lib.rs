@@ -8,9 +8,12 @@ use bevy::{
     prelude::*,
 };
 
+use crate::material::scanlines::Scanlines;
+
 #[cfg(feature = "dev")]
 mod dev_tools;
 mod game;
+mod material;
 mod model;
 mod screen;
 
@@ -29,11 +32,11 @@ impl Plugin for AppPlugin {
                 .chain(),
         );
 
-        app.add_plugins(DefaultPlugins)
+        app.add_plugins((DefaultPlugins,))
             .insert_resource(ClearColor(Color::BLACK))
             .add_systems(Startup, setup);
 
-        app.add_plugins((game::plugin, screen::plugin));
+        app.add_plugins((game::plugin, screen::plugin, material::scanlines::plugin));
 
         #[cfg(feature = "dev")]
         app.add_plugins(dev_tools::plugin);
@@ -61,5 +64,6 @@ fn setup(mut commands: Commands) {
         Bloom::NATURAL,
         ChromaticAberration::default(),
         LensDistortion::default(),
+        Scanlines::default(),
     ));
 }
