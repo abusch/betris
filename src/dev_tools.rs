@@ -10,13 +10,8 @@ use bevy::{
     input::common_conditions::input_just_pressed,
     prelude::*,
 };
-use bevy_inspector_egui::{bevy_egui::EguiPlugin, quick::ResourceInspectorPlugin};
 
-use crate::{
-    AppSystems,
-    game::{GameState, Phase},
-    screen::Screen,
-};
+use crate::{AppSystems, game::Phase, screen::Screen};
 
 #[derive(Resource)]
 struct DebugInfo(bool);
@@ -26,11 +21,7 @@ pub fn plugin(app: &mut App) {
         .add_plugins(FrameTimeDiagnosticsPlugin::default())
         .add_plugins(EntityCountDiagnosticsPlugin::default())
         .add_plugins(SystemInformationDiagnosticsPlugin)
-        .add_plugins((
-            EguiPlugin::default(),
-            ResourceInspectorPlugin::<GameState>::default().run_if(is_debug),
-            DiagnosticsOverlayPlugin,
-        ))
+        .add_plugins((DiagnosticsOverlayPlugin,))
         .add_systems(
             Update,
             (
@@ -42,10 +33,6 @@ pub fn plugin(app: &mut App) {
         );
 }
 
-fn is_debug(debug_info: Res<DebugInfo>) -> bool {
-    debug_info.0
-}
-
 fn toggle_debug(
     mut commands: Commands,
     mut debug_info: ResMut<DebugInfo>,
@@ -54,7 +41,7 @@ fn toggle_debug(
     debug_info.0 = !debug_info.0;
 
     if debug_info.0 {
-        commands.spawn(DiagnosticsOverlay::fps());
+        commands.spawn((DiagnosticsOverlay::fps(),));
     } else {
         for o in overlays {
             commands.entity(o).despawn();
