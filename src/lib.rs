@@ -6,6 +6,7 @@ use bevy::{
         effect_stack::{ChromaticAberration, LensDistortion},
     },
     prelude::*,
+    render::view::{ColorGrading, ColorGradingGlobal},
 };
 
 use crate::material::scanlines::Scanlines;
@@ -68,6 +69,13 @@ fn setup(mut commands: Commands) {
     commands.spawn((
         Camera2d,
         Hdr,
+        ColorGrading {
+            global: ColorGradingGlobal {
+                exposure: 1.2,
+                ..default()
+            },
+            ..default()
+        },
         Tonemapping::TonyMcMapface,
         Bloom::NATURAL,
         ChromaticAberration {

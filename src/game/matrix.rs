@@ -117,7 +117,7 @@ impl Matrix {
     }
 
     pub fn insert(&mut self, pos: Pos, id: Entity) {
-        info!("Inserting block at {pos}");
+        debug!("Inserting block at {pos}");
         self.board[pos.to_index()] = id;
     }
 

@@ -18,7 +18,7 @@ pub fn plugin(app: &mut App) {
 fn debug_grid(mut gizmos: Gizmos) {
     gizmos
         .grid_2d(
-            Isometry2d::new(Vec2::new(-5.0 * SCALE, 0.0), Rot2::radians(0.0)),
+            Isometry2d::new(Vec2::new(0.0, 0.0), Rot2::radians(0.0)),
             UVec2::new(10, 22),
             Vec2::new(SCALE, SCALE),
             palettes::css::HOT_PINK.with_alpha(0.5),

@@ -39,7 +39,10 @@ fn wall(width: f32, height: f32, x: f32, y: f32) -> impl Scene {
     let anchor = Anchor::BOTTOM_LEFT;
     let transform = Transform::from_xyz(x, y, 1.0);
     bsn! {
-        Sprite { custom_size: {Some(Vec2::new(width, height))} }
+        Sprite {
+            custom_size: {Some(Vec2::new(width, height))},
+            color: {LinearRgba::WHITE.with_luminance(4.0)},
+        }
         anchor
         transform
     }

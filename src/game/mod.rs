@@ -196,7 +196,7 @@ fn generate_piece(
     let next_zone_entity = next_zone.single()?;
     let tetrimino = pop_next_piece(&mut commands, &mut state.bag, next_zone_entity);
 
-    info!("Generating new tetrimino {:?}", tetrimino.kind);
+    debug!("Generating new tetrimino {:?}", tetrimino.kind);
 
     if spawn_piece(&mut commands, &state.matrix, tetrimino) {
         next_phase.set(Phase::Falling);
@@ -295,7 +295,7 @@ fn start_fall_timer(
     score: Res<Score>,
     current_piece: Single<&Positioned, With<CurrentPiece>>,
 ) {
-    info!("Starting fall timer");
+    debug!("Starting fall timer");
     // Levels only go up when lines are cleared, which happens between pieces
     timers.fall.set_level(score.level());
     // `handle_input` switches back to soft drop if the button is still held
@@ -415,14 +415,14 @@ fn handle_input(
 
     if state.matrix.is_on_surface(&current_piece, &pos) {
         if timers.lock.moves_exhausted() {
-            info!("No moves left, locking down");
+            debug!("No moves left, locking down");
             next_phase.set(Phase::Generation);
             return Ok(());
         }
         // If we just landed on a surface, (re)start the lock timer. It isn't reset here, so a
         // piece that was lifted off a surface and lands again carries on where it left off.
         if timers.lock.is_paused() {
-            info!("Starting lock timer!");
+            debug!("Starting lock timer!");
             timers.fall.pause();
             timers.lock.unpause();
         }
@@ -512,7 +512,7 @@ fn lock_down(
     mut next_phase: ResMut<NextState<Phase>>,
 ) -> Result {
     let (entity, piece_pos, piece) = current_piece.single()?;
-    info!("Locking piece");
+    debug!("Locking piece");
 
     // Recognise T-Spins before the piece becomes part of the Matrix
     state.t_spin = state
@@ -603,13 +603,13 @@ fn clear_lines(
     }
 
     for e in state.matrix.entities_to_delete() {
-        info!("Despawning block {e}");
+        debug!("Despawning block {e}");
         commands.entity(e).despawn();
     }
 
     // Remove lines from the top down so the indices of the remaining lines stay valid
     for &line in lines.iter().rev() {
-        info!("Removing line {line}");
+        debug!("Removing line {line}");
         state.matrix.delete_line(line);
     }
 
