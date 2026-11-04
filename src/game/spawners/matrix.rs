@@ -8,7 +8,7 @@ use crate::{
 
 /// Main game area. Despawning it also despawns the blocks and pieces in it.
 pub fn matrix() -> impl Scene {
-    let transform = Transform::from_xyz(-10.0 * SCALE, -11.0 * SCALE, 1.0)
+    let transform = Transform::from_xyz(-5.0 * SCALE, -11.0 * SCALE, 1.0)
         .with_scale(Vec3::new(SCALE, SCALE, 1.0));
     let width = MATRIX_WIDTH as f32;
     bsn! {

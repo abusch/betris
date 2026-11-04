@@ -1,5 +1,5 @@
 use bevy::{
-    color::palettes::css::{BLACK, GRAY},
+    color::palettes::{css::GRAY, tailwind::NEUTRAL_800},
     prelude::*,
 };
 use bevy_enhanced_input::prelude::*;
@@ -35,14 +35,14 @@ pub mod ui;
 
 pub const MATRIX_WIDTH: u8 = 10;
 pub const MATRIX_HEIGHT: u8 = 40;
-pub const SCALE: f32 = 20.0;
+pub const SCALE: f32 = 25.0;
 /// The first row above the Skyline, i.e. in the Buffer Zone
 pub const SKYLINE: i8 = 20;
 
 pub fn plugin(app: &mut App) {
     app.add_sub_state::<Phase>()
         .init_resource::<GameState>()
-        .insert_resource(ClearColor(BLACK.into()))
+        .insert_resource(ClearColor(NEUTRAL_800.into()))
         .add_systems(
             OnEnter(Screen::Gameplay),
             (load_resources, game_setup).chain(),

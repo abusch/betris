@@ -7,13 +7,13 @@ use super::{
     pos::Pos,
 };
 
-const YELLOW: Srgba = palettes::css::YELLOW;
-const LIGHT_BLUE: Srgba = palettes::css::BLUE;
-const PURPLE: Srgba = palettes::css::PURPLE;
-const ORANGE: Srgba = palettes::css::ORANGE;
-const DARK_BLUE: Srgba = palettes::css::MIDNIGHT_BLUE;
-const GREEN: Srgba = palettes::css::GREEN;
-const RED: Srgba = palettes::css::RED;
+const YELLOW: Srgba = palettes::tailwind::YELLOW_400;
+const LIGHT_BLUE: Srgba = palettes::tailwind::BLUE_300;
+const PURPLE: Srgba = palettes::tailwind::PURPLE_600;
+const ORANGE: Srgba = palettes::tailwind::ORANGE_600;
+const DARK_BLUE: Srgba = palettes::tailwind::INDIGO_600;
+const GREEN: Srgba = palettes::tailwind::GREEN_600;
+const RED: Srgba = palettes::tailwind::RED_600;
 
 #[derive(Component, Default, Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Tetrimino {

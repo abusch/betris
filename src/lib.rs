@@ -32,7 +32,15 @@ impl Plugin for AppPlugin {
                 .chain(),
         );
 
-        app.add_plugins((DefaultPlugins,))
+        app.add_plugins((DefaultPlugins.set(WindowPlugin {
+            primary_window: Some(Window {
+                title: "Betris".into(),
+                resolution: (1080, 720).into(),
+                resizable: false,
+                ..default()
+            }),
+            ..default()
+        }),))
             .insert_resource(ClearColor(Color::BLACK))
             .add_systems(Startup, setup);
 
@@ -62,8 +70,14 @@ fn setup(mut commands: Commands) {
         Hdr,
         Tonemapping::TonyMcMapface,
         Bloom::NATURAL,
-        ChromaticAberration::default(),
-        LensDistortion::default(),
+        ChromaticAberration {
+            intensity: 0.02,
+            ..default()
+        },
+        LensDistortion {
+            intensity: 0.1,
+            ..default()
+        },
         Scanlines::default(),
     ));
 }
