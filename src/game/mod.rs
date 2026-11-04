@@ -28,6 +28,7 @@ use crate::{
 mod debug;
 mod input;
 mod matrix;
+mod notifications;
 mod score;
 pub mod spawners;
 mod timers;
@@ -101,7 +102,13 @@ pub fn plugin(app: &mut App) {
         )
         .add_systems(OnExit(Screen::Gameplay), game_cleanup);
 
-    app.add_plugins((input::plugin, spawners::plugin, score::plugin, ui::plugin));
+    app.add_plugins((
+        input::plugin,
+        notifications::plugin,
+        spawners::plugin,
+        score::plugin,
+        ui::plugin,
+    ));
 
     #[cfg(feature = "dev")]
     app.add_plugins(debug::plugin);

@@ -4,6 +4,7 @@ use crate::{AppSystems, screen::Screen};
 
 pub fn plugin(app: &mut App) {
     app.add_message::<ScoreEvent>()
+        .add_message::<ScoreNotification>()
         .add_systems(OnEnter(Screen::Gameplay), setup)
         .add_systems(
             Update,
@@ -51,18 +52,22 @@ impl Score {
     ///
     /// With the fixed goal system, starting on level n requires clearing 10 x n lines to reach the
     /// next level, then 10 lines per level, so the goal only depends on the total number of lines.
-    fn add_lines(&mut self, lines: u64) {
+    /// Returns whether the player levelled up.
+    fn add_lines(&mut self, lines: u64) -> bool {
         self.lines_cleared += lines;
-        if self.lines_cleared >= Self::LINES_PER_LEVEL * self.level && self.level < Self::MAX_LEVEL
-        {
+        let level_up = self.lines_cleared >= Self::LINES_PER_LEVEL * self.level
+            && self.level < Self::MAX_LEVEL;
+        if level_up {
             self.level += 1;
             info!("Level up! Now on level {}", self.level);
         }
+        level_up
     }
 
     /// Score what the player achieved when locking down a piece, including the Back-to-Back and
-    /// combo bonuses.
-    fn lock_down(&mut self, action: ScoreAction) {
+    /// combo bonuses. Returns what to tell the player about, in reading order.
+    fn lock_down(&mut self, action: ScoreAction) -> Vec<ScoreNotification> {
+        let mut notifications = Vec::new();
         let lines = action.lines();
         let mut points = action.points() * self.level;
 
@@ -72,16 +77,21 @@ impl Score {
             if self.back_to_back {
                 info!("Back-to-Back!");
                 points += points / 2;
+                notifications.push(ScoreNotification::BackToBack);
             }
             self.back_to_back = true;
         } else if lines > 0 {
             self.back_to_back = false;
+        }
+        if action.is_notified() {
+            notifications.push(ScoreNotification::Action(action));
         }
 
         if lines > 0 {
             let combo = self.combo.map_or(0, |combo| combo + 1);
             if combo > 0 {
                 info!("Combo x{combo}");
+                notifications.push(ScoreNotification::Combo(combo));
             }
             points += Self::COMBO_POINTS * combo * self.level;
             self.combo = Some(combo);
@@ -91,10 +101,14 @@ impl Score {
 
         self.score += points;
         // Done last so that a Line Clear that levels up scores at the previous level
-        self.add_lines(lines);
+        if self.add_lines(lines) {
+            notifications.push(ScoreNotification::LevelUp(self.level));
+        }
+        notifications
     }
 
-    pub fn handle_event(&mut self, event: &ScoreEvent) {
+    /// Update the score, returning what to tell the player about.
+    pub fn handle_event(&mut self, event: &ScoreEvent) -> Vec<ScoreNotification> {
         match event {
             ScoreEvent::LevelStart(level) => {
                 *self = Self {
@@ -102,10 +116,11 @@ impl Score {
                     ..default()
                 };
             }
-            ScoreEvent::LockDown(action) => self.lock_down(*action),
+            ScoreEvent::LockDown(action) => return self.lock_down(*action),
             ScoreEvent::SoftDrop(n) => self.score += *n as u64,
             ScoreEvent::HardDrop(n) => self.score += *n as u64 * 2,
         }
+        Vec::new()
     }
 
     pub fn formatted(&self) -> String {
@@ -128,6 +143,28 @@ pub enum ScoreEvent {
     LockDown(ScoreAction),
     SoftDrop(u8),
     HardDrop(u8),
+}
+
+/// Something the player achieved that is worth telling them about (see section 13.1.5 of the
+/// guideline)
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Message)]
+pub enum ScoreNotification {
+    BackToBack,
+    Action(ScoreAction),
+    Combo(u64),
+    /// The level that was reached
+    LevelUp(u64),
+}
+
+impl ScoreNotification {
+    pub fn text(self) -> String {
+        match self {
+            Self::BackToBack => "Back-to-Back".to_string(),
+            Self::Action(action) => action.name().to_string(),
+            Self::Combo(combo) => format!("Combo x{combo}"),
+            Self::LevelUp(level) => format!("Level {level}"),
+        }
+    }
 }
 
 /// A T-Spin, recognised when the T-Tetrimino locks down (see section 9 of the guideline)
@@ -173,6 +210,29 @@ impl ScoreAction {
             _ => return None,
         };
         Some(action)
+    }
+
+    /// The name of the action, as shown to the player
+    fn name(self) -> &'static str {
+        match self {
+            Self::Lock => "Lock",
+            Self::Single => "Single",
+            Self::Double => "Double",
+            Self::Triple => "Triple",
+            Self::Tetris => "Tetris",
+            Self::MiniTSpin => "Mini T-Spin",
+            Self::MiniTSpinSingle => "Mini T-Spin Single",
+            Self::TSpin => "T-Spin",
+            Self::TSpinSingle => "T-Spin Single",
+            Self::TSpinDouble => "T-Spin Double",
+            Self::TSpinTriple => "T-Spin Triple",
+        }
+    }
+
+    /// Whether the player gets a notification for this action. A plain lock down or Single happens
+    /// too often to be worth one.
+    fn is_notified(self) -> bool {
+        !matches!(self, Self::Lock | Self::Single)
     }
 
     /// Points awarded before applying the level multiplier
@@ -221,9 +281,13 @@ fn cleanup(mut commands: Commands) {
     commands.remove_resource::<Score>();
 }
 
-fn update(mut score: ResMut<Score>, mut events: MessageReader<ScoreEvent>) {
+fn update(
+    mut score: ResMut<Score>,
+    mut events: MessageReader<ScoreEvent>,
+    mut notifications: MessageWriter<ScoreNotification>,
+) {
     for event in events.read() {
-        score.handle_event(event)
+        notifications.write_batch(score.handle_event(event));
     }
 }
 
@@ -384,6 +448,102 @@ mod tests {
         score.handle_event(&ScoreEvent::LevelStart(1));
         lock_down(&mut score, &[ScoreAction::Tetris]);
         assert_eq!(score.score, 800);
+    }
+
+    /// What the player is told about after locking down a piece achieving `action`
+    fn notifications(score: &mut Score, action: ScoreAction) -> Vec<ScoreNotification> {
+        score.handle_event(&ScoreEvent::LockDown(action))
+    }
+
+    #[test]
+    fn plain_lock_down_and_single_have_no_notification() {
+        let mut score = score_at_level(1);
+        assert_eq!(notifications(&mut score, ScoreAction::Lock), []);
+        assert_eq!(notifications(&mut score, ScoreAction::Single), []);
+    }
+
+    #[test]
+    fn notable_actions_are_notified() {
+        use ScoreAction::*;
+        for action in [
+            Double,
+            Triple,
+            Tetris,
+            MiniTSpin,
+            MiniTSpinSingle,
+            TSpin,
+            TSpinSingle,
+            TSpinDouble,
+            TSpinTriple,
+        ] {
+            let mut score = score_at_level(1);
+            assert_eq!(
+                notifications(&mut score, action),
+                [ScoreNotification::Action(action)]
+            );
+        }
+    }
+
+    #[test]
+    fn back_to_back_is_notified_from_the_second_action_in_the_sequence() {
+        use ScoreAction::*;
+        let mut score = score_at_level(1);
+        lock_down(&mut score, &[Tetris, Lock]);
+        assert_eq!(
+            notifications(&mut score, TSpinDouble),
+            [
+                ScoreNotification::BackToBack,
+                ScoreNotification::Action(TSpinDouble)
+            ]
+        );
+    }
+
+    #[test]
+    fn combo_is_notified_from_the_second_consecutive_line_clear() {
+        let mut score = score_at_level(1);
+        assert_eq!(notifications(&mut score, ScoreAction::Single), []);
+        assert_eq!(
+            notifications(&mut score, ScoreAction::Single),
+            [ScoreNotification::Combo(1)]
+        );
+    }
+
+    #[test]
+    fn level_up_is_notified_after_the_action_that_caused_it() {
+        let mut score = score_at_level(1);
+        lock_down(
+            &mut score,
+            &[
+                ScoreAction::Triple,
+                ScoreAction::Lock,
+                ScoreAction::Triple,
+                ScoreAction::Lock,
+                ScoreAction::Triple,
+                ScoreAction::Lock,
+            ],
+        );
+        assert_eq!(
+            notifications(&mut score, ScoreAction::Double),
+            [
+                ScoreNotification::Action(ScoreAction::Double),
+                ScoreNotification::LevelUp(2)
+            ]
+        );
+    }
+
+    #[test]
+    fn notification_texts_name_the_action() {
+        let texts = [
+            ScoreNotification::BackToBack,
+            ScoreNotification::Action(ScoreAction::TSpinDouble),
+            ScoreNotification::Combo(3),
+            ScoreNotification::LevelUp(4),
+        ]
+        .map(ScoreNotification::text);
+        assert_eq!(
+            texts,
+            ["Back-to-Back", "T-Spin Double", "Combo x3", "Level 4"]
+        );
     }
 
     #[test]
