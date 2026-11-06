@@ -2,8 +2,11 @@ use std::time::Duration;
 
 use bevy::prelude::*;
 
+use super::line_clear;
+
 #[derive(Default, Resource)]
 pub struct Timers {
+    pub line_clear: LineClearTimer,
     pub generation: GenerationTimer,
     pub fall: FallTimer,
     pub lock: LockTimer,
@@ -11,9 +14,26 @@ pub struct Timers {
 
 impl Timers {
     pub fn tick(&mut self, delta: Duration) {
+        self.line_clear.tick(delta);
         self.generation.tick(delta);
         self.fall.tick(delta);
         self.lock.tick(delta);
+    }
+}
+
+/// Length of the line clear animation
+#[derive(Deref, DerefMut)]
+pub(super) struct LineClearTimer(Timer);
+
+impl LineClearTimer {
+    pub fn new() -> Self {
+        Self(Timer::from_seconds(line_clear::DURATION, TimerMode::Once))
+    }
+}
+
+impl Default for LineClearTimer {
+    fn default() -> Self {
+        Self::new()
     }
 }
 

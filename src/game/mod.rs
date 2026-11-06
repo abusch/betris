@@ -27,6 +27,7 @@ use crate::{
 #[cfg(feature = "dev")]
 mod debug;
 mod input;
+mod line_clear;
 mod matrix;
 mod notifications;
 mod score;
@@ -39,6 +40,8 @@ pub const MATRIX_HEIGHT: u8 = 40;
 pub const SCALE: f32 = 25.0;
 /// The first row above the Skyline, i.e. in the Buffer Zone
 pub const SKYLINE: i8 = 20;
+/// The color of the blocks committed to the Matrix
+const BLOCK_COLOR: Srgba = GRAY;
 
 pub fn plugin(app: &mut App) {
     app.add_sub_state::<Phase>()
@@ -48,14 +51,19 @@ pub fn plugin(app: &mut App) {
             OnEnter(Screen::Gameplay),
             (load_resources, game_setup).chain(),
         )
-        // Lock down, Pattern and Eliminate take no game time, so they run back to back in the
-        // frame where the piece locks.
         .add_systems(
             OnTransition {
                 exited: Phase::Falling,
+                entered: Phase::Animate,
+            },
+            lock_down,
+        )
+        .add_systems(
+            OnTransition {
+                exited: Phase::Animate,
                 entered: Phase::Generation,
             },
-            (lock_down, clear_lines).chain(),
+            clear_lines,
         )
         // Holding re-enters the Falling phase, so that the new piece starts falling like a newly
         // generated one
@@ -104,6 +112,7 @@ pub fn plugin(app: &mut App) {
 
     app.add_plugins((
         input::plugin,
+        line_clear::plugin,
         notifications::plugin,
         spawners::plugin,
         score::plugin,
@@ -122,8 +131,8 @@ pub struct GameAssets {
 /// The phases of the Tetris engine that take up game time (see Appendix A1 of the Tetris Design
 /// Guideline).
 ///
-/// The other phases are instantaneous so they are not modeled as states: Lock down, Pattern and
-/// Eliminate run on the `Falling -> Generation` transition.
+/// The other phases are instantaneous so they are not modeled as states: Lock down runs on the
+/// `Falling -> Animate` transition, Pattern and Eliminate on the `Animate -> Generation` one.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Hash, SubStates, Reflect, strum::Display)]
 #[source(Screen = Screen::Gameplay)]
 pub enum Phase {
@@ -133,6 +142,8 @@ pub enum Phase {
     /// The player controls the piece. This also covers the guideline's Lock phase, i.e. when the
     /// piece is on a surface and the lock down timer is running.
     Falling,
+    /// The piece locked down and any lines it completed are being animated
+    Animate,
     /// The piece locked down entirely above the Skyline (Lock out), or the next piece couldn't be
     /// generated (Block out)
     GameOver,
@@ -328,9 +339,9 @@ fn handle_input(
 ) -> Result {
     let (mut current_piece, mut pos) = current_piece_query.single_mut()?;
 
-    // If lock timer has expired -> lock down (see the `Falling -> Generation` transition)
+    // If lock timer has expired -> lock down (see the `Falling -> Animate` transition)
     if timers.lock.times_finished_this_tick() > 0 {
-        next_phase.set(Phase::Generation);
+        next_phase.set(Phase::Animate);
         return Ok(());
     }
 
@@ -408,7 +419,7 @@ fn handle_input(
         }
         score_messages.write(ScoreEvent::HardDrop(n));
         // A hard dropped piece locks down immediately
-        next_phase.set(Phase::Generation);
+        next_phase.set(Phase::Animate);
         return Ok(());
     }
     timers.lock.on_fall(pos.y);
@@ -416,7 +427,7 @@ fn handle_input(
     if state.matrix.is_on_surface(&current_piece, &pos) {
         if timers.lock.moves_exhausted() {
             debug!("No moves left, locking down");
-            next_phase.set(Phase::Generation);
+            next_phase.set(Phase::Animate);
             return Ok(());
         }
         // If we just landed on a surface, (re)start the lock timer. It isn't reset here, so a
@@ -531,7 +542,7 @@ fn lock_down(
                 Block
                 Positioned(block_pos)
                 ChildOf(root)
-                @mino(block_pos, GRAY.into())
+                @mino(block_pos, BLOCK_COLOR.into())
             })
             .id();
         state.matrix.insert(block_pos, block);
