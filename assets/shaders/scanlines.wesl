@@ -6,6 +6,7 @@ import bevy_render::maths::PI;
 
 struct Scanlines {
   num_lines: u32,
+  num_cols: u32,
   intensity: f32,
 }
 
@@ -14,7 +15,10 @@ struct Scanlines {
 /// Cheap scanline effect.
 @fragment
 fn fragment(in: FullscreenVertexOutput) -> @location(0) vec4<f32> {
-  let scanline = abs(sin(in.uv.y * f32(settings.num_lines) * PI)) * settings.intensity;
+  let scanline = abs(
+    sin(in.uv.y * f32(settings.num_lines) * PI) *
+    sin(in.uv.x * f32(settings.num_cols) * PI)
+  ) * (1.0 - settings.intensity) + settings.intensity;
   var pixel = textureSample(screen_texture, texture_sampler, in.uv);
 
   pixel.r *= scanline;

@@ -150,7 +150,7 @@ fn debug_ui() -> impl Scene {
             }
             Children [
                 @pane_header() Children [
-                    @label("Debug UI blablablablablabla")
+                    @label("Debug UI")
                 ]
                 --
                 @pane_body() Children [
@@ -279,6 +279,20 @@ fn debug_ui() -> impl Scene {
                                 commands.entity(value_change.source).insert(NumberInputValue::I32(value_change.value));
                                 if value_change.is_final {
                                     scanlines.single_mut().unwrap().num_lines = value_change.value as u32;
+                                }
+                            })
+                            --
+                            @label_small("num cols")
+                            --
+                            @FeathersNumberInput
+                            NumberInputPrecision(0)
+                            HardLimit::i32(0..=1000)
+                            NumberInputStep(10.0)
+                            NumberInputValue::I32(300)
+                            on(|value_change: On<ValueChange<i32>>, mut scanlines: Query<&mut Scanlines>, mut commands: Commands| {
+                                commands.entity(value_change.source).insert(NumberInputValue::I32(value_change.value));
+                                if value_change.is_final {
+                                    scanlines.single_mut().unwrap().num_cols = value_change.value as u32;
                                 }
                             })
                             --

@@ -9,7 +9,7 @@ use super::{
 use crate::{AppSystems, screen::Screen};
 
 /// Brighter than white so that the blocks bloom
-const GLOW_COLOR: LinearRgba = LinearRgba::rgb(6.0, 6.0, 6.0);
+const GLOW_COLOR: LinearRgba = LinearRgba::rgb(26.0, 26.0, 26.0);
 /// How long the blocks take to turn white, in seconds
 const GLOW_DURATION: f32 = 0.12;
 /// Delay between a column starting to disappear and the next one, in seconds

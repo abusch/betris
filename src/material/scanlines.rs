@@ -13,6 +13,7 @@ pub fn plugin(app: &mut App) {
 #[extract_app(RenderApp)]
 pub struct Scanlines {
     pub num_lines: u32,
+    pub num_cols: u32,
     pub intensity: f32,
 }
 
@@ -20,6 +21,7 @@ impl Default for Scanlines {
     fn default() -> Self {
         Self {
             num_lines: 200,
+            num_cols: 300,
             intensity: 0.5,
         }
     }

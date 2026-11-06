@@ -77,7 +77,7 @@ fn setup(mut commands: Commands) {
             ..default()
         },
         Tonemapping::TonyMcMapface,
-        Bloom::NATURAL,
+        Bloom::OLD_SCHOOL,
         ChromaticAberration {
             intensity: 0.02,
             ..default()
