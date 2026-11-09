@@ -94,7 +94,7 @@ fn setup(mut commands: Commands, mut images: ResMut<Assets<Image>>) {
             ..default()
         },
         Tonemapping::TonyMcMapface,
-        Bloom::OLD_SCHOOL,
+        Bloom::NATURAL,
         ChromaticAberration {
             intensity: 0.01,
             ..default()
