@@ -1,11 +1,11 @@
 use bevy::{prelude::*, sprite::Anchor};
 
-use crate::model::{Pos, Tetrimino};
-
 use super::Positioned;
+use crate::{
+    game::intensities::Intensities,
+    model::{Pos, Tetrimino},
+};
 
-/// Neon cyan, the same for all ghost pieces
-const GHOST_COLOR: Color = Color::LinearRgba(LinearRgba::new(0.2, 2.0, 1.8, 0.8));
 /// Neon outline texture, tinted by the mino's color
 const MINO_IMAGE: &str = "images/mino.png";
 /// Just the outline of `MINO_IMAGE`, for the ghost piece
@@ -14,18 +14,20 @@ const GHOST_MINO_IMAGE: &str = "images/mino_outline.png";
 pub const HELD_UNAVAILABLE_ALPHA: f32 = 0.3;
 
 /// The piece controlled by the player
-pub fn current_piece(tetrimino: Tetrimino, pos: Pos) -> impl Scene {
+pub fn current_piece(tetrimino: Tetrimino, pos: Pos, intensities: Intensities) -> impl Scene {
+    let color = intensities.piece_color(tetrimino.kind);
     bsn! {
-        @piece(tetrimino, pos, tetrimino.kind.color(), MINO_IMAGE)
+        @piece(tetrimino, pos, color, MINO_IMAGE)
         Name("Current piece")
         CurrentPiece
     }
 }
 
 /// Shows where the current piece would land
-pub fn ghost_piece(tetrimino: Tetrimino, pos: Pos) -> impl Scene {
+pub fn ghost_piece(tetrimino: Tetrimino, pos: Pos, intensities: Intensities) -> impl Scene {
+    let color = intensities.ghost_color();
     bsn! {
-        @piece(tetrimino, pos, GHOST_COLOR, GHOST_MINO_IMAGE)
+        @piece(tetrimino, pos, color, GHOST_MINO_IMAGE)
         Name("Ghost piece")
         GhostPiece
         // Keep the ghost behind the current piece so that the current piece is always drawn on top
@@ -35,17 +37,19 @@ pub fn ghost_piece(tetrimino: Tetrimino, pos: Pos) -> impl Scene {
 }
 
 /// The piece shown in the next-piece zone
-pub fn next_piece(tetrimino: Tetrimino) -> impl Scene {
+pub fn next_piece(tetrimino: Tetrimino, intensities: Intensities) -> impl Scene {
+    let color = intensities.piece_color(tetrimino.kind);
     bsn! {
-        @piece(tetrimino, Pos::ZERO, tetrimino.kind.color(), MINO_IMAGE)
+        @piece(tetrimino, Pos::ZERO, color, MINO_IMAGE)
         Name("Next piece")
     }
 }
 
 /// The piece shown in the Hold Queue
-pub fn held_piece(tetrimino: Tetrimino) -> impl Scene {
+pub fn held_piece(tetrimino: Tetrimino, intensities: Intensities) -> impl Scene {
+    let color = intensities.piece_color(tetrimino.kind);
     bsn! {
-        @piece(tetrimino, Pos::ZERO, tetrimino.kind.color(), MINO_IMAGE)
+        @piece(tetrimino, Pos::ZERO, color, MINO_IMAGE)
         Name("Held piece")
         HeldPiece
     }

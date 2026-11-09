@@ -28,7 +28,11 @@ use bevy::{
 };
 
 use crate::{
-    AppSystems, camera::RESOLUTION, game::Phase, material::scanlines::Scanlines, screen::Screen,
+    AppSystems,
+    camera::RESOLUTION,
+    game::{Phase, intensities::Intensities},
+    material::scanlines::Scanlines,
+    screen::Screen,
 };
 
 #[derive(Resource)]
@@ -313,8 +317,50 @@ fn debug_ui() -> impl Scene {
                             })
                         ]
                     ]
+                    --
+                    @subpane() Children [
+                        @subpane_header() Children [
+                            @caption("Neon intensity")
+                        ]
+                        --
+                        @subpane_body() Children [
+                            @label_small("pieces")
+                            --
+                            @intensity_input(|intensities: &mut Intensities| &mut intensities.neon)
+                            --
+                            @label_small("locked blocks")
+                            --
+                            @intensity_input(|intensities: &mut Intensities| &mut intensities.locked)
+                            --
+                            @label_small("ghost piece")
+                            --
+                            @intensity_input(|intensities: &mut Intensities| &mut intensities.ghost)
+                            --
+                            @label_small("matrix frame")
+                            --
+                            @intensity_input(|intensities: &mut Intensities| &mut intensities.frame)
+                        ]
+                    ]
                 ]
             ]
         ]
+    }
+}
+
+/// A number input editing the field of `Intensities` that `field` points to
+fn intensity_input(field: fn(&mut Intensities) -> &mut f32) -> impl Scene {
+    let value = *field(&mut Intensities::default());
+    bsn! {
+        @FeathersNumberInput
+        NumberInputPrecision(2)
+        NumberInputStep(0.1)
+        HardLimit::f32(0.0..=10.0)
+        NumberInputValue::F32(value)
+        on(move |value_change: On<ValueChange<f32>>, mut intensities: ResMut<Intensities>, mut commands: Commands| {
+            commands.entity(value_change.source).insert(NumberInputValue::F32(value_change.value));
+            if value_change.is_final {
+                *field(&mut intensities) = value_change.value;
+            }
+        })
     }
 }

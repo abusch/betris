@@ -7,11 +7,6 @@ use super::{
     pos::Pos,
 };
 
-/// How much brighter than their palette colors tetriminos in play are
-const NEON_INTENSITY: f32 = 2.5;
-/// How much brighter than their palette colors locked blocks are: a little, so that dark colors
-/// stand out against the background, but much less than tetriminos in play
-const LOCKED_INTENSITY: f32 = 1.4;
 const YELLOW: Srgba = palettes::tailwind::YELLOW_400;
 const LIGHT_BLUE: Srgba = palettes::tailwind::BLUE_300;
 const PURPLE: Srgba = palettes::tailwind::PURPLE_600;
@@ -125,19 +120,9 @@ pub enum TetriminoKind {
 }
 
 impl TetriminoKind {
-    /// The color of the blocks the tetrimino leaves in the Matrix
-    pub fn locked_color(&self) -> Color {
-        self.palette_color(LOCKED_INTENSITY)
-    }
-
-    /// The tetrimino's color while it is in play, brighter than its palette color so that it
+    /// The tetrimino's palette color, with its brightness multiplied by `intensity`: above 1 it
     /// blooms like neon
-    pub fn color(&self) -> Color {
-        self.palette_color(NEON_INTENSITY)
-    }
-
-    /// The tetrimino's palette color, with its brightness multiplied by `intensity`
-    fn palette_color(&self, intensity: f32) -> Color {
+    pub fn color(&self, intensity: f32) -> Color {
         let color = LinearRgba::from(self.base_color());
         (color * intensity).with_alpha(color.alpha).into()
     }

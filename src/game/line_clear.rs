@@ -3,7 +3,10 @@
 
 use bevy::prelude::*;
 
-use super::{Block, GameState, MATRIX_WIDTH, Phase, spawners::Positioned, timers::Timers};
+use super::{
+    Block, GameState, MATRIX_WIDTH, Phase, intensities::Intensities, spawners::Positioned,
+    timers::Timers,
+};
 use crate::{AppSystems, screen::Screen};
 
 /// Brighter than white so that the blocks bloom
@@ -49,6 +52,7 @@ fn block_color(color: Color, elapsed: f32, x: i8) -> Color {
 fn animate(
     timers: Res<Timers>,
     state: Res<GameState>,
+    intensities: Res<Intensities>,
     mut next_phase: ResMut<NextState<Phase>>,
     mut blocks: Query<(&Block, &Positioned, &mut Sprite)>,
 ) {
@@ -60,7 +64,7 @@ fn animate(
     let elapsed = timers.line_clear.elapsed_secs();
     for entity in state.matrix.entities_to_delete() {
         if let Ok((Block(kind), pos, mut sprite)) = blocks.get_mut(entity) {
-            sprite.color = block_color(kind.locked_color(), elapsed, pos.x);
+            sprite.color = block_color(intensities.locked_color(*kind), elapsed, pos.x);
         }
     }
 
@@ -85,7 +89,7 @@ mod tests {
 
     #[test]
     fn blocks_turn_white_before_disappearing() {
-        let color = TetriminoKind::T.locked_color();
+        let color = Intensities::default().locked_color(TetriminoKind::T);
         assert_eq!(block_color(color, 0.0, 0), LinearRgba::from(color).into());
         assert_eq!(block_color(color, GLOW_DURATION, 0), GLOW_COLOR.into());
     }
@@ -109,6 +113,7 @@ mod tests {
         world.init_resource::<GameState>();
         world.init_resource::<NextState<Phase>>();
         world.init_resource::<Timers>();
+        world.init_resource::<Intensities>();
         let width = MATRIX_WIDTH as i8 - i8::from(!full);
         let blocks: Vec<_> = (0..width)
             .map(|x| {
@@ -141,7 +146,11 @@ mod tests {
         assert_eq!(next_phase(&world), None);
         assert_eq!(
             world.get::<Sprite>(block).unwrap().color,
-            block_color(Block::default().0.locked_color(), halfway.as_secs_f32(), 0)
+            block_color(
+                Intensities::default().locked_color(Block::default().0),
+                halfway.as_secs_f32(),
+                0
+            )
         );
 
         world.resource_mut::<Timers>().tick(halfway * 2);

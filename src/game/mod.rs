@@ -14,7 +14,7 @@ use spawners::{
 };
 use timers::Timers;
 
-use self::matrix::Matrix;
+use self::{intensities::Intensities, matrix::Matrix};
 use crate::{
     AppSystems,
     model::{Bag, Rotation, Tetrimino, TetriminoKind},
@@ -24,6 +24,7 @@ use crate::{
 #[cfg(feature = "dev")]
 mod debug;
 mod input;
+pub mod intensities;
 mod line_clear;
 mod matrix;
 mod notifications;
@@ -107,6 +108,7 @@ pub fn plugin(app: &mut App) {
 
     app.add_plugins((
         input::plugin,
+        intensities::plugin,
         line_clear::plugin,
         notifications::plugin,
         spawners::plugin,
@@ -175,11 +177,12 @@ fn load_resources(asset_server: Res<AssetServer>, mut commands: Commands) {
 fn game_setup(
     mut commands: Commands,
     mut state: ResMut<GameState>,
+    intensities: Res<Intensities>,
     mut event_writer: MessageWriter<ScoreEvent>,
 ) {
     commands.init_resource::<Timers>();
 
-    state.matrix.root_entity = commands.spawn_scene(matrix()).id();
+    state.matrix.root_entity = commands.spawn_scene(matrix(*intensities)).id();
     commands.spawn_scene(next_zone());
     commands.spawn_scene(hold_zone());
     input::bindings(&mut commands);
@@ -197,14 +200,20 @@ fn generate_piece(
     mut commands: Commands,
     mut state: ResMut<GameState>,
     mut next_phase: ResMut<NextState<Phase>>,
+    intensities: Res<Intensities>,
     next_zone: Query<Entity, With<NextTetriminoZone>>,
 ) -> Result {
     let next_zone_entity = next_zone.single()?;
-    let tetrimino = pop_next_piece(&mut commands, &mut state.bag, next_zone_entity);
+    let tetrimino = pop_next_piece(
+        &mut commands,
+        &mut state.bag,
+        next_zone_entity,
+        *intensities,
+    );
 
     debug!("Generating new tetrimino {:?}", tetrimino.kind);
 
-    if spawn_piece(&mut commands, &state.matrix, tetrimino) {
+    if spawn_piece(&mut commands, &state.matrix, tetrimino, *intensities) {
         next_phase.set(Phase::Falling);
     } else {
         next_phase.set(Phase::GameOver);
@@ -214,17 +223,27 @@ fn generate_piece(
 }
 
 /// Take the next piece out of the bag, and show the one after it in the Next Queue.
-fn pop_next_piece(commands: &mut Commands, bag: &mut Bag, next_zone: Entity) -> Tetrimino {
+fn pop_next_piece(
+    commands: &mut Commands,
+    bag: &mut Bag,
+    next_zone: Entity,
+    intensities: Intensities,
+) -> Tetrimino {
     let tetrimino = bag.pop_next().into();
     let next: Tetrimino = bag.peek_next().into();
     commands.entity(next_zone).despawn_related::<Children>();
-    commands.spawn_scene(bsn! { @next_piece(next) ChildOf(next_zone) });
+    commands.spawn_scene(bsn! { @next_piece(next, intensities) ChildOf(next_zone) });
     tetrimino
 }
 
 /// Spawn `tetrimino` at its generation position, along with its ghost piece. Returns `false` if
 /// an existing block is in the way, i.e. on a Block out.
-fn spawn_piece(commands: &mut Commands, matrix: &Matrix, tetrimino: Tetrimino) -> bool {
+fn spawn_piece(
+    commands: &mut Commands,
+    matrix: &Matrix,
+    tetrimino: Tetrimino,
+    intensities: Intensities,
+) -> bool {
     if !matrix.is_pos_valid(&tetrimino, &INITIAL_POS) {
         info!("Block out!");
         return false;
@@ -236,9 +255,9 @@ fn spawn_piece(commands: &mut Commands, matrix: &Matrix, tetrimino: Tetrimino) -
         pos = pos.down();
     }
     let root = matrix.root_entity;
-    commands.spawn_scene(bsn! { @current_piece(tetrimino, pos) ChildOf(root) });
+    commands.spawn_scene(bsn! { @current_piece(tetrimino, pos, intensities) ChildOf(root) });
     let ghost_pos = matrix.lowest_valid_pos(&tetrimino, &pos);
-    commands.spawn_scene(bsn! { @ghost_piece(tetrimino, ghost_pos) ChildOf(root) });
+    commands.spawn_scene(bsn! { @ghost_piece(tetrimino, ghost_pos, intensities) ChildOf(root) });
 
     true
 }
@@ -249,6 +268,7 @@ fn hold_piece(
     mut commands: Commands,
     mut state: ResMut<GameState>,
     mut next_phase: ResMut<NextState<Phase>>,
+    intensities: Res<Intensities>,
     current_piece: Query<(Entity, &Tetrimino), With<CurrentPiece>>,
     ghost_piece: Query<Entity, With<GhostPiece>>,
     hold_zone: Query<Entity, With<HoldQueueZone>>,
@@ -269,16 +289,21 @@ fn hold_piece(
     commands
         .entity(hold_zone_entity)
         .despawn_related::<Children>();
-    commands.spawn_scene(bsn! { @held_piece(held) ChildOf(hold_zone_entity) });
+    commands.spawn_scene(bsn! { @held_piece(held, *intensities) ChildOf(hold_zone_entity) });
 
     let tetrimino = match state.held.replace(current.kind) {
         Some(kind) => kind.into(),
-        None => pop_next_piece(&mut commands, &mut state.bag, next_zone_entity),
+        None => pop_next_piece(
+            &mut commands,
+            &mut state.bag,
+            next_zone_entity,
+            *intensities,
+        ),
     };
     state.has_held = true;
     state.last_rotation_point = None;
 
-    if !spawn_piece(&mut commands, &state.matrix, tetrimino) {
+    if !spawn_piece(&mut commands, &state.matrix, tetrimino, *intensities) {
         next_phase.set(Phase::GameOver);
     }
 
@@ -479,14 +504,16 @@ fn update_mino_offsets(
 /// Dim the held piece while Hold is unavailable, i.e. until the current piece locks down.
 fn update_held_piece_color(
     state: Res<GameState>,
+    intensities: Res<Intensities>,
     held_piece: Query<(&Tetrimino, &Children), With<HeldPiece>>,
     mut minos: Query<&mut Sprite, With<Mino>>,
 ) {
     for (piece, children) in &held_piece {
+        let color = intensities.piece_color(piece.kind);
         let color = if state.has_held {
-            piece.kind.color().with_alpha(HELD_UNAVAILABLE_ALPHA)
+            color.with_alpha(HELD_UNAVAILABLE_ALPHA)
         } else {
-            piece.kind.color()
+            color
         };
         for child in children.iter() {
             if let Ok(mut sprite) = minos.get_mut(child) {
@@ -513,6 +540,7 @@ fn lock_down(
     mut commands: Commands,
     mut state: ResMut<GameState>,
     assets: Res<GameAssets>,
+    intensities: Res<Intensities>,
     current_piece: Query<(Entity, &Positioned, &Tetrimino), With<CurrentPiece>>,
     ghost_piece: Query<Entity, With<GhostPiece>>,
     mut next_phase: ResMut<NextState<Phase>>,
@@ -530,6 +558,7 @@ fn lock_down(
         PlaybackSettings::DESPAWN,
     ));
 
+    let color = intensities.locked_color(piece.kind);
     for block_pos in piece.block_positions(piece_pos) {
         let root = state.matrix.root_entity;
         let block = commands
@@ -537,7 +566,7 @@ fn lock_down(
                 Block({piece.kind})
                 Positioned(block_pos)
                 ChildOf(root)
-                @mino(block_pos, piece.kind.locked_color())
+                @mino(block_pos, color)
             })
             .id();
         state.matrix.insert(block_pos, block);
@@ -709,6 +738,7 @@ mod tests {
         let world = app.world_mut();
         world.init_resource::<GameState>();
         world.init_resource::<NextState<Phase>>();
+        world.init_resource::<Intensities>();
         world.insert_resource(GameAssets {
             impact: Handle::default(),
         });
@@ -818,12 +848,13 @@ mod tests {
         let mut app = piece_app(TetriminoKind::T.into(), Pos::new(4, 5));
 
         hold(&mut app);
-        let dimmed = TetriminoKind::T.color().with_alpha(HELD_UNAVAILABLE_ALPHA);
+        let color = Intensities::default().piece_color(TetriminoKind::T);
+        let dimmed = color.with_alpha(HELD_UNAVAILABLE_ALPHA);
         assert_eq!(held_mino_colors(&mut app), [dimmed; 4]);
 
         let result: Result = app.world_mut().run_system_once(lock_down).unwrap();
         result.unwrap();
-        assert_eq!(held_mino_colors(&mut app), [TetriminoKind::T.color(); 4]);
+        assert_eq!(held_mino_colors(&mut app), [color; 4]);
     }
 
     #[test]
@@ -836,7 +867,10 @@ mod tests {
         app.update();
 
         let world = app.world_mut();
-        let root = world.spawn_scene(matrix()).unwrap().id();
+        let root = world
+            .spawn_scene(matrix(Intensities::default()))
+            .unwrap()
+            .id();
         world.resource_mut::<GameState>().matrix.root_entity = root;
         let block = world.spawn(ChildOf(root)).id();
         spawn_block_entity(world, Pos::new(0, 0), block);
@@ -951,7 +985,7 @@ mod tests {
             let block = matrix.at_pos(block_pos);
             assert_eq!(
                 world.get::<Sprite>(block).unwrap().color,
-                TetriminoKind::S.locked_color()
+                Intensities::default().locked_color(TetriminoKind::S)
             );
         }
     }
@@ -975,6 +1009,7 @@ mod tests {
         let world = app.world_mut();
         world.init_resource::<GameState>();
         world.init_resource::<NextState<Phase>>();
+        world.init_resource::<Intensities>();
         world.spawn(NextTetriminoZone);
         for x in 0..MATRIX_WIDTH as i8 {
             spawn_block(world, Pos::new(x, INITIAL_POS.y));
