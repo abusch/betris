@@ -74,9 +74,11 @@ Uses `bevy_enhanced_input` for handling player controls:
 
 ### Rendering
 
-- Uses `bevy_vector_shapes` for shape rendering
-- 2D camera setup with HDR and bloom effects
-- Scale factor of 20.0 for grid-to-world coordinate conversion
+- The game is rendered at 540x360 (`src/camera.rs`) into an HDR image, which a second camera
+  upscales 2x with nearest filtering and post-processes (bloom, scanlines, lens distortion, ...)
+- World units are game pixels; `SCALE` (12.0) is the size of a block in pixels
+- Root UI nodes are drawn at the window's resolution by default (e.g. the debug UI); add `GameUi`
+  to draw them at the game's resolution instead
 - Custom tweening system for animations
 
 ## Development Notes

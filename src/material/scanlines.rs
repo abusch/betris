@@ -5,6 +5,8 @@ use bevy::{
     shader::ShaderRef,
 };
 
+use crate::camera::RESOLUTION;
+
 pub fn plugin(app: &mut App) {
     app.add_plugins(FullscreenMaterialPlugin::<Scanlines>::default());
 }
@@ -20,8 +22,9 @@ pub struct Scanlines {
 impl Default for Scanlines {
     fn default() -> Self {
         Self {
-            num_lines: 200,
-            num_cols: 300,
+            // One line per row and column of game pixels
+            num_lines: RESOLUTION.y,
+            num_cols: RESOLUTION.x,
             intensity: 0.5,
         }
     }

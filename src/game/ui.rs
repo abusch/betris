@@ -1,6 +1,6 @@
 use bevy::{prelude::*, text::FontSourceTemplate};
 
-use crate::screen::Screen;
+use crate::{camera::GameUi, screen::Screen};
 
 use super::{Phase, score::Score};
 
@@ -25,11 +25,12 @@ pub fn game_font(size: f32) -> impl Scene {
 fn setup(mut commands: Commands) {
     commands.spawn_scene(bsn! {
         #Hud
+        GameUi
         DespawnOnExit<Screen>(Screen::Gameplay)
         Node {
             position_type: PositionType::Absolute,
-            top: px(5.0),
-            left: px(5.0),
+            top: px(2.0),
+            left: px(2.0),
             flex_direction: FlexDirection::Column,
         }
         Children [
@@ -47,12 +48,12 @@ fn counter(label: &'static str, counter: Counter) -> impl Scene {
     bsn! {
         Text(label)
         TextLayout::no_wrap()
-        @game_font(40.0)
+        @game_font(19.0)
         TextColor(Color::WHITE)
         Children [
             TextSpan("")
             counter
-            @game_font(40.0)
+            @game_font(19.0)
         ]
     }
 }
@@ -78,6 +79,7 @@ fn update(score: Res<Score>, mut texts: Query<(&mut TextSpan, &Counter)>) {
 fn show_game_over(mut commands: Commands) {
     commands.spawn_scene(bsn! {
         #GameOver
+        GameUi
         DespawnOnExit<Phase>(Phase::GameOver)
         Node {
             width: percent(100.0),
@@ -89,11 +91,11 @@ fn show_game_over(mut commands: Commands) {
         BackgroundColor({Color::BLACK.with_alpha(0.6)})
         Children [
             Text("Game Over")
-            @game_font(78.0)
+            @game_font(37.0)
             TextColor(Color::WHITE)
             --
             Text("Press Enter to play again")
-            @game_font(30.0)
+            @game_font(14.0)
             TextColor(Color::WHITE)
         ]
     });

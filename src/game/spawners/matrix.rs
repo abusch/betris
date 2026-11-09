@@ -10,14 +10,18 @@ use crate::{
 const VISIBLE_HEIGHT: f32 = 22.0;
 /// Bright enough to bloom
 const FRAME_COLOR: Color = Color::LinearRgba(LinearRgba::rgb(0.3, 1.2, 3.0));
-/// Thickness of the frame's lines, in blocks (2 pixels)
-const FRAME_THICKNESS: f32 = 2.0 / SCALE;
+/// Thickness of the frame's lines, in blocks (1 pixel)
+const FRAME_THICKNESS: f32 = 1.0 / SCALE;
 /// How far outside the Matrix the frame's lines are, in blocks
-const FRAME_OFFSETS: [f32; 2] = [4.0 / SCALE, 11.0 / SCALE];
+const FRAME_OFFSETS: [f32; 2] = [2.0 / SCALE, 5.0 / SCALE];
 const PANEL_COLOR: Color = Color::Srgba(Srgba::rgb(0.03, 0.03, 0.08));
 const DOT_COLOR: Color = Color::LinearRgba(LinearRgba::rgb(0.04, 0.1, 0.3));
+/// Size of the dot marking each empty cell, in pixels
+const DOT_PIXELS: f32 = 2.0;
 /// Size of the dot marking each empty cell, in blocks
-const DOT_SIZE: f32 = 3.0 / SCALE;
+const DOT_SIZE: f32 = DOT_PIXELS / SCALE;
+/// Where the dot is in its cell, in blocks: in the middle, rounded down to a whole pixel
+const DOT_OFFSET: f32 = ((SCALE - DOT_PIXELS) / 2.0).floor() / SCALE;
 
 /// Main game area. Despawning it also despawns the blocks and pieces in it.
 pub fn matrix() -> impl Scene {
@@ -35,9 +39,8 @@ pub fn matrix() -> impl Scene {
     )];
     for x in 0..MATRIX_WIDTH {
         for y in 0..height as u8 {
-            let center = Vec2::new(f32::from(x), f32::from(y)) + 0.5;
             decorations.push(rect(
-                center - DOT_SIZE / 2.0,
+                Vec2::new(f32::from(x), f32::from(y)) + DOT_OFFSET,
                 Vec2::splat(DOT_SIZE),
                 DOT_COLOR,
                 -0.1,

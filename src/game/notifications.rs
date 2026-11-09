@@ -13,7 +13,7 @@ use crate::{AppSystems, screen::Screen};
 /// The middle of the visible part of the Matrix
 const INSIDE_MATRIX: Vec2 = Vec2::new(0.0, -SCALE);
 /// Below the Next Queue
-const OUTSIDE_MATRIX: Vec2 = Vec2::new(300.0, -SCALE);
+const OUTSIDE_MATRIX: Vec2 = Vec2::new(144.0, -SCALE);
 /// The guideline only allows notifications inside the Matrix up to this level, as they would
 /// otherwise get in the way at higher fall speeds.
 const LAST_LEVEL_INSIDE_MATRIX: u64 = 10;
@@ -30,7 +30,7 @@ const FADE_START: f32 = 0.5;
 /// How far a notification moves up over its lifetime
 const RISE: f32 = 1.5 * SCALE;
 /// How far apart notifications are stacked
-const LINE_HEIGHT: f32 = 32.0;
+const LINE_HEIGHT: f32 = 15.0;
 /// How quickly a notification slides out of the way of newer ones
 const STACK_DECAY_RATE: f32 = 20.0;
 
@@ -87,9 +87,9 @@ fn origin(level: u64) -> Vec2 {
 /// Fit the longest text in the width of the Matrix, and keep the actions most prominent.
 fn font_size(notification: ScoreNotification) -> f32 {
     match notification {
-        ScoreNotification::Action(ScoreAction::MiniTSpinSingle) => 21.0,
-        ScoreNotification::Action(_) => 28.0,
-        _ => 22.0,
+        ScoreNotification::Action(ScoreAction::MiniTSpinSingle) => 10.0,
+        ScoreNotification::Action(_) => 13.0,
+        _ => 11.0,
     }
 }
 

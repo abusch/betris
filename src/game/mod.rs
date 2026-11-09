@@ -34,7 +34,8 @@ pub mod ui;
 
 pub const MATRIX_WIDTH: u8 = 10;
 pub const MATRIX_HEIGHT: u8 = 40;
-pub const SCALE: f32 = 25.0;
+/// The size of a block, in game pixels
+pub const SCALE: f32 = 12.0;
 /// The first row above the Skyline, i.e. in the Buffer Zone
 pub const SKYLINE: i8 = 20;
 

@@ -22,7 +22,7 @@ fn enter_splash(mut commands: Commands) {
     commands.spawn_scene(bsn! {
         DespawnOnExit<Screen>(Screen::Splash)
         Text2d("Betris")
-        @game_font(78.0)
+        @game_font(37.0)
         TextColor(Color::WHITE)
         TextLayout { justify: Justify::Center }
     });

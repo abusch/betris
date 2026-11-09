@@ -1,16 +1,6 @@
-use bevy::{
-    camera::Hdr,
-    core_pipeline::tonemapping::Tonemapping,
-    post_process::{
-        bloom::Bloom,
-        effect_stack::{ChromaticAberration, LensDistortion, Vignette},
-    },
-    prelude::*,
-    render::view::{ColorGrading, ColorGradingGlobal},
-};
+use bevy::prelude::*;
 
-use crate::material::scanlines::Scanlines;
-
+mod camera;
 #[cfg(feature = "dev")]
 mod dev_tools;
 mod game;
@@ -33,19 +23,26 @@ impl Plugin for AppPlugin {
                 .chain(),
         );
 
-        app.add_plugins((DefaultPlugins.set(WindowPlugin {
-            primary_window: Some(Window {
-                title: "Betris".into(),
-                resolution: (1080, 720).into(),
-                resizable: false,
+        app.add_plugins((DefaultPlugins
+            .set(WindowPlugin {
+                primary_window: Some(Window {
+                    title: "Betris".into(),
+                    resolution: camera::WINDOW_SIZE.into(),
+                    resizable: false,
+                    ..default()
+                }),
                 ..default()
-            }),
-            ..default()
-        }),))
-            .insert_resource(ClearColor(Srgba::rgb(0.01, 0.01, 0.03).into()))
-            .add_systems(Startup, setup);
+            })
+            // Pixel art
+            .set(ImagePlugin::default_nearest()),))
+            .insert_resource(ClearColor(Srgba::rgb(0.01, 0.01, 0.03).into()));
 
-        app.add_plugins((game::plugin, screen::plugin, material::scanlines::plugin));
+        app.add_plugins((
+            camera::plugin,
+            game::plugin,
+            screen::plugin,
+            material::scanlines::plugin,
+        ));
 
         #[cfg(feature = "dev")]
         app.add_plugins(dev_tools::plugin);
@@ -63,35 +60,4 @@ enum AppSystems {
     RecordInput,
     /// Do everything else (consider splitting this into further variants).
     Update,
-}
-
-fn setup(mut commands: Commands) {
-    commands.spawn((
-        Camera2d,
-        Hdr,
-        ColorGrading {
-            global: ColorGradingGlobal {
-                exposure: 1.2,
-                ..default()
-            },
-            ..default()
-        },
-        Tonemapping::TonyMcMapface,
-        Bloom::OLD_SCHOOL,
-        ChromaticAberration {
-            intensity: 0.01,
-            ..default()
-        },
-        LensDistortion {
-            intensity: 0.1,
-            ..default()
-        },
-        Vignette {
-            intensity: 0.6,
-            radius: 0.9,
-            smoothness: 2.0,
-            ..default()
-        },
-        Scanlines::default(),
-    ));
 }

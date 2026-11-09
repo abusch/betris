@@ -27,7 +27,9 @@ use bevy::{
     ui_widgets::ValueChange,
 };
 
-use crate::{AppSystems, Scanlines, game::Phase, screen::Screen};
+use crate::{
+    AppSystems, camera::RESOLUTION, game::Phase, material::scanlines::Scanlines, screen::Screen,
+};
 
 #[derive(Resource)]
 struct DebugState {
@@ -274,7 +276,7 @@ fn debug_ui() -> impl Scene {
                             NumberInputPrecision(0)
                             HardLimit::i32(0..=1000)
                             NumberInputStep(10.0)
-                            NumberInputValue::I32(200)
+                            NumberInputValue::I32({RESOLUTION.y as i32})
                             on(|value_change: On<ValueChange<i32>>, mut scanlines: Query<&mut Scanlines>, mut commands: Commands| {
                                 commands.entity(value_change.source).insert(NumberInputValue::I32(value_change.value));
                                 if value_change.is_final {
@@ -288,7 +290,7 @@ fn debug_ui() -> impl Scene {
                             NumberInputPrecision(0)
                             HardLimit::i32(0..=1000)
                             NumberInputStep(10.0)
-                            NumberInputValue::I32(300)
+                            NumberInputValue::I32({RESOLUTION.x as i32})
                             on(|value_change: On<ValueChange<i32>>, mut scanlines: Query<&mut Scanlines>, mut commands: Commands| {
                                 commands.entity(value_change.source).insert(NumberInputValue::I32(value_change.value));
                                 if value_change.is_final {

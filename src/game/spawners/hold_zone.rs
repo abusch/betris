@@ -4,8 +4,7 @@ use crate::{game::SCALE, screen::Screen};
 
 /// Hold Queue display zone, to the left of the matrix. Despawning it also despawns the held piece.
 pub fn hold_zone() -> impl Scene {
-    let transform =
-        Transform::from_xyz(-340.0, 100.0, 1.0).with_scale(Vec3::new(SCALE, SCALE, 1.0));
+    let transform = Transform::from_xyz(-162.0, 48.0, 1.0).with_scale(Vec3::new(SCALE, SCALE, 1.0));
     bsn! {
         Name("Hold queue zone")
         DespawnOnExit<Screen>(Screen::Gameplay)
