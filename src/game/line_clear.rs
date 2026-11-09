@@ -3,9 +3,7 @@
 
 use bevy::prelude::*;
 
-use super::{
-    BLOCK_COLOR, Block, GameState, MATRIX_WIDTH, Phase, spawners::Positioned, timers::Timers,
-};
+use super::{Block, GameState, MATRIX_WIDTH, Phase, spawners::Positioned, timers::Timers};
 use crate::{AppSystems, screen::Screen};
 
 /// Brighter than white so that the blocks bloom
@@ -35,12 +33,12 @@ fn start_timer(mut timers: ResMut<Timers>) {
     timers.line_clear.reset();
 }
 
-/// The color of a block in column `x`, `elapsed` seconds into the animation.
-fn block_color(elapsed: f32, x: i8) -> Color {
+/// The color of a block of color `color` in column `x`, `elapsed` seconds into the animation.
+fn block_color(color: Color, elapsed: f32, x: i8) -> Color {
     let glow = (elapsed / GLOW_DURATION).min(1.0);
     let fade_start = GLOW_DURATION + f32::from(x) * COLUMN_DELAY;
     let fade = ((elapsed - fade_start) / FADE_DURATION).clamp(0.0, 1.0);
-    LinearRgba::from(BLOCK_COLOR)
+    LinearRgba::from(color)
         .mix(&GLOW_COLOR, glow)
         .with_alpha(1.0 - fade)
         .into()
@@ -52,7 +50,7 @@ fn animate(
     timers: Res<Timers>,
     state: Res<GameState>,
     mut next_phase: ResMut<NextState<Phase>>,
-    mut blocks: Query<(&Positioned, &mut Sprite), With<Block>>,
+    mut blocks: Query<(&Block, &Positioned, &mut Sprite)>,
 ) {
     // A Lock out in `lock_down` ends the game right away
     if matches!(*next_phase, NextState::Pending(Phase::GameOver)) {
@@ -61,8 +59,8 @@ fn animate(
 
     let elapsed = timers.line_clear.elapsed_secs();
     for entity in state.matrix.entities_to_delete() {
-        if let Ok((pos, mut sprite)) = blocks.get_mut(entity) {
-            sprite.color = block_color(elapsed, pos.x);
+        if let Ok((Block(kind), pos, mut sprite)) = blocks.get_mut(entity) {
+            sprite.color = block_color(kind.locked_color(), elapsed, pos.x);
         }
     }
 
@@ -79,16 +77,17 @@ mod tests {
     use bevy::ecs::system::RunSystemOnce;
 
     use super::*;
-    use crate::model::Pos;
+    use crate::model::{Pos, TetriminoKind};
 
     fn alpha(elapsed: f32, x: i8) -> f32 {
-        block_color(elapsed, x).alpha()
+        block_color(Color::WHITE, elapsed, x).alpha()
     }
 
     #[test]
     fn blocks_turn_white_before_disappearing() {
-        assert_eq!(block_color(0.0, 0), LinearRgba::from(BLOCK_COLOR).into());
-        assert_eq!(block_color(GLOW_DURATION, 0), GLOW_COLOR.into());
+        let color = TetriminoKind::T.locked_color();
+        assert_eq!(block_color(color, 0.0, 0), LinearRgba::from(color).into());
+        assert_eq!(block_color(color, GLOW_DURATION, 0), GLOW_COLOR.into());
     }
 
     #[test]
@@ -115,7 +114,7 @@ mod tests {
             .map(|x| {
                 let pos = Pos::new(x, 0);
                 let block = world
-                    .spawn((Block, Positioned(pos), Sprite::default()))
+                    .spawn((Block::default(), Positioned(pos), Sprite::default()))
                     .id();
                 world.resource_mut::<GameState>().matrix.insert(pos, block);
                 block
@@ -142,7 +141,7 @@ mod tests {
         assert_eq!(next_phase(&world), None);
         assert_eq!(
             world.get::<Sprite>(block).unwrap().color,
-            block_color(halfway.as_secs_f32(), 0)
+            block_color(Block::default().0.locked_color(), halfway.as_secs_f32(), 0)
         );
 
         world.resource_mut::<Timers>().tick(halfway * 2);

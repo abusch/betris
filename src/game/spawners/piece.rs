@@ -4,15 +4,19 @@ use crate::model::{Pos, Tetrimino};
 
 use super::Positioned;
 
-/// Opacity of the ghost piece's minos
-const GHOST_ALPHA: f32 = 0.3;
+/// Neon cyan, the same for all ghost pieces
+const GHOST_COLOR: Color = Color::LinearRgba(LinearRgba::new(0.2, 2.0, 1.8, 0.8));
+/// Neon outline texture, tinted by the mino's color
+const MINO_IMAGE: &str = "images/mino.png";
+/// Just the outline of `MINO_IMAGE`, for the ghost piece
+const GHOST_MINO_IMAGE: &str = "images/mino_outline.png";
 /// Opacity of the held piece's minos while Hold is unavailable
 pub const HELD_UNAVAILABLE_ALPHA: f32 = 0.3;
 
 /// The piece controlled by the player
 pub fn current_piece(tetrimino: Tetrimino, pos: Pos) -> impl Scene {
     bsn! {
-        @piece(tetrimino, pos, tetrimino.kind.color())
+        @piece(tetrimino, pos, tetrimino.kind.color(), MINO_IMAGE)
         Name("Current piece")
         CurrentPiece
     }
@@ -21,7 +25,7 @@ pub fn current_piece(tetrimino: Tetrimino, pos: Pos) -> impl Scene {
 /// Shows where the current piece would land
 pub fn ghost_piece(tetrimino: Tetrimino, pos: Pos) -> impl Scene {
     bsn! {
-        @piece(tetrimino, pos, tetrimino.kind.color().with_alpha(GHOST_ALPHA))
+        @piece(tetrimino, pos, GHOST_COLOR, GHOST_MINO_IMAGE)
         Name("Ghost piece")
         GhostPiece
         // Keep the ghost behind the current piece so that the current piece is always drawn on top
@@ -33,7 +37,7 @@ pub fn ghost_piece(tetrimino: Tetrimino, pos: Pos) -> impl Scene {
 /// The piece shown in the next-piece zone
 pub fn next_piece(tetrimino: Tetrimino) -> impl Scene {
     bsn! {
-        @piece(tetrimino, Pos::ZERO, tetrimino.kind.color())
+        @piece(tetrimino, Pos::ZERO, tetrimino.kind.color(), MINO_IMAGE)
         Name("Next piece")
     }
 }
@@ -41,17 +45,18 @@ pub fn next_piece(tetrimino: Tetrimino) -> impl Scene {
 /// The piece shown in the Hold Queue
 pub fn held_piece(tetrimino: Tetrimino) -> impl Scene {
     bsn! {
-        @piece(tetrimino, Pos::ZERO, tetrimino.kind.color())
+        @piece(tetrimino, Pos::ZERO, tetrimino.kind.color(), MINO_IMAGE)
         Name("Held piece")
         HeldPiece
     }
 }
 
-fn piece(tetrimino: Tetrimino, pos: Pos, color: Color) -> impl Scene {
+/// A piece whose minos show `image` tinted with `color`
+fn piece(tetrimino: Tetrimino, pos: Pos, color: Color, image: &'static str) -> impl Scene {
     let minos: Vec<_> = tetrimino
         .block_offsets()
         .iter()
-        .map(|&offset| mino(offset, color))
+        .map(|&offset| mino_with_image(offset, color, image))
         .collect();
     bsn! {
         Piece
@@ -64,11 +69,16 @@ fn piece(tetrimino: Tetrimino, pos: Pos, color: Color) -> impl Scene {
 
 /// A mino of the given color, at the given position relative to its parent
 pub fn mino(pos: Pos, color: Color) -> impl Scene {
+    mino_with_image(pos, color, MINO_IMAGE)
+}
+
+/// A mino showing `image` tinted with `color`, at the given position relative to its parent
+fn mino_with_image(pos: Pos, color: Color, image: &'static str) -> impl Scene {
     let anchor = Anchor::BOTTOM_LEFT;
     let transform = Transform::from(pos);
     bsn! {
         Mino
-        Sprite { color: color, custom_size: {Some(Vec2::ONE)} }
+        Sprite { image: image, color: color, custom_size: {Some(Vec2::ONE)} }
         anchor
         transform
     }

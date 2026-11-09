@@ -166,7 +166,7 @@ fn debug_ui() -> impl Scene {
                             NumberInputPrecision(2)
                             NumberInputStep(0.1)
                             HardLimit::f32(0.0..=1.0)
-                            NumberInputValue::F32(0.02)
+                            NumberInputValue::F32(0.01)
                             on(|value_change: On<ValueChange<f32>>, mut chromatic_aberration: Query<&mut ChromaticAberration>, mut commands: Commands| {
                                 commands.entity(value_change.source).insert(NumberInputValue::F32(value_change.value));
                                 if value_change.is_final {

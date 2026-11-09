@@ -1,7 +1,4 @@
-use bevy::{
-    color::palettes::{css::GRAY, tailwind::NEUTRAL_800},
-    prelude::*,
-};
+use bevy::prelude::*;
 use bevy_enhanced_input::prelude::*;
 use input::{AutoRepeat, Direction, HardDrop, Hold, Restart, RotateLeft, RotateRight, SoftDrop};
 use score::{Score, ScoreAction, ScoreEvent, TSpin};
@@ -40,13 +37,10 @@ pub const MATRIX_HEIGHT: u8 = 40;
 pub const SCALE: f32 = 25.0;
 /// The first row above the Skyline, i.e. in the Buffer Zone
 pub const SKYLINE: i8 = 20;
-/// The color of the blocks committed to the Matrix
-const BLOCK_COLOR: Srgba = GRAY;
 
 pub fn plugin(app: &mut App) {
     app.add_sub_state::<Phase>()
         .init_resource::<GameState>()
-        .insert_resource(ClearColor(NEUTRAL_800.into()))
         .add_systems(
             OnEnter(Screen::Gameplay),
             (load_resources, game_setup).chain(),
@@ -167,9 +161,9 @@ pub struct GameState {
     pub t_spin: Option<TSpin>,
 }
 
-/// A static block that has been committed to the matrix.
+/// A static block that has been committed to the matrix, by a tetrimino of the given kind.
 #[derive(Default, Clone, Component)]
-pub struct Block;
+pub struct Block(pub TetriminoKind);
 
 fn load_resources(asset_server: Res<AssetServer>, mut commands: Commands) {
     commands.insert_resource(GameAssets {
@@ -539,10 +533,10 @@ fn lock_down(
         let root = state.matrix.root_entity;
         let block = commands
             .spawn_scene(bsn! {
-                Block
+                Block({piece.kind})
                 Positioned(block_pos)
                 ChildOf(root)
-                @mino(block_pos, BLOCK_COLOR.into())
+                @mino(block_pos, piece.kind.locked_color())
             })
             .id();
         state.matrix.insert(block_pos, block);
@@ -651,7 +645,9 @@ mod tests {
 
     /// Turn `entity` into a block at `pos` and add it to the matrix
     fn spawn_block_entity(world: &mut World, pos: Pos, entity: Entity) {
-        world.entity_mut(entity).insert((Block, Positioned(pos)));
+        world
+            .entity_mut(entity)
+            .insert((Block::default(), Positioned(pos)));
         world.resource_mut::<GameState>().matrix.insert(pos, entity);
     }
 
@@ -701,6 +697,8 @@ mod tests {
             AssetPlugin::default(),
             bevy::scene::ScenePlugin,
         ));
+        // Minos are sprites with an image
+        app.init_asset::<Image>();
         app
     }
 
@@ -938,6 +936,23 @@ mod tests {
             assert_eq!(world.get::<Positioned>(block).unwrap().0, block_pos);
         }
         assert_eq!(matrix.iter_non_empty().count(), 4);
+    }
+
+    #[test]
+    fn locked_blocks_keep_the_piece_color() {
+        let tetrimino = Tetrimino::from(TetriminoKind::S);
+        let pos = Pos::new(4, 0);
+        let app = lock_piece(tetrimino, pos);
+        let world = app.world();
+
+        let matrix = &world.resource::<GameState>().matrix;
+        for block_pos in tetrimino.block_positions(&pos) {
+            let block = matrix.at_pos(block_pos);
+            assert_eq!(
+                world.get::<Sprite>(block).unwrap().color,
+                TetriminoKind::S.locked_color()
+            );
+        }
     }
 
     #[test]
