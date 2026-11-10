@@ -28,6 +28,7 @@ pub mod intensities;
 mod line_clear;
 mod matrix;
 mod notifications;
+mod pause;
 mod score;
 pub mod spawners;
 mod timers;
@@ -111,6 +112,7 @@ pub fn plugin(app: &mut App) {
         intensities::plugin,
         line_clear::plugin,
         notifications::plugin,
+        pause::plugin,
         spawners::plugin,
         score::plugin,
         ui::plugin,

@@ -1,8 +1,7 @@
 use bevy::{prelude::*, sprite::Anchor};
-use bevy_enhanced_input::prelude::Actions;
 
 use crate::{
-    game::{MATRIX_WIDTH, SCALE, input::InGame, intensities::Intensities},
+    game::{MATRIX_WIDTH, SCALE, intensities::Intensities},
     screen::Screen,
 };
 
@@ -73,7 +72,6 @@ pub fn matrix(intensities: Intensities) -> impl Scene {
         DespawnOnExit<Screen>(Screen::Gameplay)
         transform
         Visibility
-        Actions<InGame>
         Children [ {children} ]
     }
 }

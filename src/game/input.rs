@@ -8,7 +8,7 @@ use crate::screen::Screen;
 pub fn plugin(app: &mut App) {
     app.add_plugins(EnhancedInputPlugin)
         .add_input_context::<InGame>()
-        .add_observer(toggle_pause);
+        .add_input_context::<PauseControls>();
 }
 
 pub fn bindings(commands: &mut Commands) {
@@ -77,14 +77,6 @@ pub fn bindings(commands: &mut Commands) {
                 Binding(GamepadButton::RightTrigger)
             ]
             --
-            Action::<Pause>::new()
-            ~Press::default()
-            Bindings [
-                Binding(KeyCode::KeyP)
-                --
-                Binding(GamepadButton::Select)
-            ]
-            --
             Action::<Restart>::new()
             ~Press::default()
             Bindings [
@@ -94,10 +86,28 @@ pub fn bindings(commands: &mut Commands) {
             ]
         ]
     });
+    commands.spawn_scene(bsn! {
+        PauseControls
+        DespawnOnExit<Screen>(Screen::Gameplay)
+        Actions<PauseControls> [
+            Action::<Pause>::new()
+            ~Press::default()
+            Bindings [
+                Binding(KeyCode::KeyP)
+                --
+                Binding(GamepadButton::Select)
+            ]
+        ]
+    });
 }
 
+/// The gameplay actions, which are deactivated while the game is paused
 #[derive(Debug, Default, Clone, Component)]
 pub struct InGame;
+
+/// Pausing and unpausing, which stays active while the game is paused
+#[derive(Debug, Default, Clone, Component)]
+pub struct PauseControls;
 
 #[derive(Debug, InputAction)]
 #[action_output(bool)]
@@ -134,14 +144,6 @@ pub struct Pause;
 #[derive(Debug, InputAction)]
 #[action_output(bool)]
 pub struct Restart;
-
-fn toggle_pause(_trigger: On<Start<Pause>>, mut time: ResMut<Time<Virtual>>) {
-    if time.is_paused() {
-        time.unpause();
-    } else {
-        time.pause();
-    }
-}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Direction {
