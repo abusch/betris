@@ -83,7 +83,7 @@ impl Score {
         } else if lines > 0 {
             self.back_to_back = false;
         }
-        if action.is_notified() {
+        if action != ScoreAction::Lock {
             notifications.push(ScoreNotification::Action(action));
         }
 
@@ -99,6 +99,9 @@ impl Score {
             self.combo = None;
         }
 
+        if points > 0 {
+            notifications.push(ScoreNotification::Points(points));
+        }
         self.score += points;
         // Done last so that a Line Clear that levels up scores at the previous level
         if self.add_lines(lines) {
@@ -152,6 +155,8 @@ pub enum ScoreNotification {
     BackToBack,
     Action(ScoreAction),
     Combo(u64),
+    /// The points scored by the lock down, including the Back-to-Back and combo bonuses
+    Points(u64),
     /// The level that was reached
     LevelUp(u64),
 }
@@ -162,6 +167,7 @@ impl ScoreNotification {
             Self::BackToBack => "Back-to-Back".to_string(),
             Self::Action(action) => action.name().to_string(),
             Self::Combo(combo) => format!("Combo x{combo}"),
+            Self::Points(points) => format!("+{points}"),
             Self::LevelUp(level) => format!("Level {level}"),
         }
     }
@@ -227,12 +233,6 @@ impl ScoreAction {
             Self::TSpinDouble => "T-Spin Double",
             Self::TSpinTriple => "T-Spin Triple",
         }
-    }
-
-    /// Whether the player gets a notification for this action. A plain lock down or Single happens
-    /// too often to be worth one.
-    fn is_notified(self) -> bool {
-        !matches!(self, Self::Lock | Self::Single)
     }
 
     /// Points awarded before applying the level multiplier
@@ -456,16 +456,16 @@ mod tests {
     }
 
     #[test]
-    fn plain_lock_down_and_single_have_no_notification() {
+    fn plain_lock_down_has_no_notification() {
         let mut score = score_at_level(1);
         assert_eq!(notifications(&mut score, ScoreAction::Lock), []);
-        assert_eq!(notifications(&mut score, ScoreAction::Single), []);
     }
 
     #[test]
-    fn notable_actions_are_notified() {
+    fn actions_are_notified_with_their_points() {
         use ScoreAction::*;
         for action in [
+            Single,
             Double,
             Triple,
             Tetris,
@@ -476,10 +476,13 @@ mod tests {
             TSpinDouble,
             TSpinTriple,
         ] {
-            let mut score = score_at_level(1);
+            let mut score = score_at_level(2);
             assert_eq!(
                 notifications(&mut score, action),
-                [ScoreNotification::Action(action)]
+                [
+                    ScoreNotification::Action(action),
+                    ScoreNotification::Points(action.points() * 2)
+                ]
             );
         }
     }
@@ -493,7 +496,8 @@ mod tests {
             notifications(&mut score, TSpinDouble),
             [
                 ScoreNotification::BackToBack,
-                ScoreNotification::Action(TSpinDouble)
+                ScoreNotification::Action(TSpinDouble),
+                ScoreNotification::Points(1200 + 600)
             ]
         );
     }
@@ -501,10 +505,14 @@ mod tests {
     #[test]
     fn combo_is_notified_from_the_second_consecutive_line_clear() {
         let mut score = score_at_level(1);
-        assert_eq!(notifications(&mut score, ScoreAction::Single), []);
+        lock_down(&mut score, &[ScoreAction::Single]);
         assert_eq!(
             notifications(&mut score, ScoreAction::Single),
-            [ScoreNotification::Combo(1)]
+            [
+                ScoreNotification::Action(ScoreAction::Single),
+                ScoreNotification::Combo(1),
+                ScoreNotification::Points(100 + 50)
+            ]
         );
     }
 
@@ -526,6 +534,7 @@ mod tests {
             notifications(&mut score, ScoreAction::Double),
             [
                 ScoreNotification::Action(ScoreAction::Double),
+                ScoreNotification::Points(300),
                 ScoreNotification::LevelUp(2)
             ]
         );
@@ -537,12 +546,19 @@ mod tests {
             ScoreNotification::BackToBack,
             ScoreNotification::Action(ScoreAction::TSpinDouble),
             ScoreNotification::Combo(3),
+            ScoreNotification::Points(1234),
             ScoreNotification::LevelUp(4),
         ]
         .map(ScoreNotification::text);
         assert_eq!(
             texts,
-            ["Back-to-Back", "T-Spin Double", "Combo x3", "Level 4"]
+            [
+                "Back-to-Back",
+                "T-Spin Double",
+                "Combo x3",
+                "+1234",
+                "Level 4"
+            ]
         );
     }
 
