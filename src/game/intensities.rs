@@ -47,10 +47,10 @@ pub struct Intensities {
 impl Default for Intensities {
     fn default() -> Self {
         Self {
-            neon: 2.5,
+            neon: 25.0,
             locked: 1.4,
             ghost: 2.0,
-            frame: 3.0,
+            frame: 25.0,
         }
     }
 }

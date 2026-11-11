@@ -471,7 +471,7 @@ fn intensity_input(field: fn(&mut Intensities) -> &mut f32) -> impl Scene {
         @FeathersNumberInput
         NumberInputPrecision(2)
         NumberInputStep(0.1)
-        HardLimit::f32(0.0..=10.0)
+        HardLimit::f32(0.0..=50.0)
         NumberInputValue::F32(value)
         on(move |value_change: On<ValueChange<f32>>, mut intensities: ResMut<Intensities>, mut commands: Commands| {
             commands.entity(value_change.source).insert(NumberInputValue::F32(value_change.value));
