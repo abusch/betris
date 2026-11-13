@@ -41,7 +41,7 @@ impl Plugin for AppPlugin {
             camera::plugin,
             game::plugin,
             screen::plugin,
-            material::scanlines::plugin,
+            material::crt::plugin,
         ));
 
         #[cfg(feature = "dev")]

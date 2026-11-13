@@ -8,31 +8,29 @@ use bevy::{
 use crate::camera::RESOLUTION;
 
 pub fn plugin(app: &mut App) {
-    app.add_plugins(FullscreenMaterialPlugin::<Scanlines>::default());
+    app.add_plugins(FullscreenMaterialPlugin::<Crt>::default());
 }
 
 #[derive(Component, ExtractComponent, Clone, Copy, ShaderType)]
 #[extract_app(RenderApp)]
-pub struct Scanlines {
-    pub num_lines: u32,
-    pub num_cols: u32,
-    pub intensity: f32,
+pub struct Crt {
+    pub low_resolution: UVec2,
+    pub mask_strength: f32,
 }
 
-impl Default for Scanlines {
+impl Default for Crt {
     fn default() -> Self {
         Self {
             // One line per row and column of game pixels
-            num_lines: RESOLUTION.y,
-            num_cols: RESOLUTION.x,
-            intensity: 0.5,
+            low_resolution: RESOLUTION,
+            mask_strength: 1.0,
         }
     }
 }
 
-impl FullscreenMaterial for Scanlines {
+impl FullscreenMaterial for Crt {
     fn fragment_shader() -> ShaderRef {
-        "shaders/scanlines.wesl".into()
+        "shaders/crt.wesl".into()
     }
 
     fn schedule() -> impl bevy::ecs::schedule::ScheduleLabel + Clone {

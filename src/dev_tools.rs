@@ -32,9 +32,8 @@ use bevy::{
 
 use crate::{
     AppSystems,
-    camera::RESOLUTION,
     game::{Phase, intensities::Intensities},
-    material::scanlines::Scanlines,
+    material::crt::Crt,
     screen::Screen,
 };
 
@@ -197,7 +196,7 @@ fn debug_ui() -> impl Scene {
                             --
                             @lens_distortion_section()
                             --
-                            @scanlines_section()
+                            @crt_section()
                             --
                             @neon_intensity_section()
                         ]
@@ -394,48 +393,20 @@ fn lens_distortion_section() -> impl Scene {
     }
 }
 
-fn scanlines_section() -> impl Scene {
+fn crt_section() -> impl Scene {
     bsn! {
-        @section("Scanlines", bsn_list! {
-            @label_small("num lines")
-            --
-            @FeathersNumberInput
-            NumberInputPrecision(0)
-            HardLimit::i32(0..=1000)
-            NumberInputStep(10.0)
-            NumberInputValue::I32({RESOLUTION.y as i32})
-            on(|value_change: On<ValueChange<i32>>, mut scanlines: Query<&mut Scanlines>, mut commands: Commands| {
-                commands.entity(value_change.source).insert(NumberInputValue::I32(value_change.value));
-                if value_change.is_final {
-                    scanlines.single_mut().unwrap().num_lines = value_change.value as u32;
-                }
-            })
-            --
-            @label_small("num cols")
-            --
-            @FeathersNumberInput
-            NumberInputPrecision(0)
-            HardLimit::i32(0..=1000)
-            NumberInputStep(10.0)
-            NumberInputValue::I32({RESOLUTION.x as i32})
-            on(|value_change: On<ValueChange<i32>>, mut scanlines: Query<&mut Scanlines>, mut commands: Commands| {
-                commands.entity(value_change.source).insert(NumberInputValue::I32(value_change.value));
-                if value_change.is_final {
-                    scanlines.single_mut().unwrap().num_cols = value_change.value as u32;
-                }
-            })
-            --
-            @label_small("intensity")
+        @section("CRT", bsn_list! {
+            @label_small("mask strength")
             --
             @FeathersNumberInput
             NumberInputPrecision(2)
-            NumberInputStep(0.1)
-            HardLimit::f32(0.0..=1.0)
-            NumberInputValue::F32(0.5)
-            on(|value_change: On<ValueChange<f32>>, mut scanlines: Query<&mut Scanlines>, mut commands: Commands| {
+            HardLimit::f32(0.0..=3.0)
+            NumberInputStep(0.2)
+            NumberInputValue::F32(1.0)
+            on(|value_change: On<ValueChange<f32>>, mut crt: Query<&mut Crt>, mut commands: Commands| {
                 commands.entity(value_change.source).insert(NumberInputValue::F32(value_change.value));
                 if value_change.is_final {
-                    scanlines.single_mut().unwrap().intensity = value_change.value;
+                    crt.single_mut().unwrap().mask_strength = value_change.value;
                 }
             })
         })

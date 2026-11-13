@@ -17,7 +17,7 @@ use bevy::{
     },
 };
 
-use crate::material::scanlines::Scanlines;
+use crate::material::crt::Crt;
 
 /// The resolution the game is rendered at
 pub const RESOLUTION: UVec2 = UVec2::new(540, 360);
@@ -109,7 +109,7 @@ fn setup(mut commands: Commands, mut images: ResMut<Assets<Image>>) {
             smoothness: 2.0,
             ..default()
         },
-        Scanlines::default(),
+        Crt::default(),
     ));
 }
 
